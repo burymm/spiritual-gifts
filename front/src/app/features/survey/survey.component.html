@@ -1,0 +1,93 @@
+<section class="page">
+  <header class="page-head">
+    <div>
+      <p class="eyebrow">Шаг 2 · анкета</p>
+      <h1>Ситуации и качества</h1>
+      <p class="lead">
+        Отметьте, насколько каждое утверждение описывает вас. Шкала: «Никогда» =
+        1, «Всегда» = 5. Анкета необязательна — можно сразу перейти к диаграмме.
+      </p>
+    </div>
+    <button class="btn btn-ghost" type="button" (click)="clear()">
+      Очистить
+    </button>
+  </header>
+
+  <div class="progress-card">
+    <div class="progress-top">
+      <span>Заполнено {{ progress().answered }} из {{ progress().total }}</span>
+      <span class="progress-percent">{{ percent() }}%</span>
+    </div>
+    <div class="progress-track">
+      <span class="progress-fill" [style.width.%]="percent()"></span>
+    </div>
+    @if (!progress().complete) {
+      <p class="warn">
+        Пока анкета не заполнена полностью, ответы не учитываются: диаграмма
+        откроется равномерной. Пропуск не считается ответом «Никогда».
+      </p>
+    } @else {
+      <p class="ok">Анкета заполнена полностью — ответы будут учтены.</p>
+    }
+  </div>
+
+  <ol class="questions">
+    @for (question of pageQuestions(); track question.id) {
+      <li class="question" [class.is-answered]="answerOf(question.id) !== null">
+        <div class="question-text">
+          <span class="qno">№{{ question.id }}</span>
+          @if (question.isCandidate) {
+            <span class="chip">дополнительный</span>
+          }
+          <p>{{ question.text }}</p>
+        </div>
+
+        <div class="scale" role="radiogroup" [attr.aria-label]="'Ответ на вопрос ' + question.id">
+          @for (option of scale; track option.value) {
+            <button
+              type="button"
+              class="scale-btn"
+              role="radio"
+              [attr.aria-checked]="answerOf(question.id) === option.value"
+              [class.is-selected]="answerOf(question.id) === option.value"
+              (click)="setAnswer(question.id, option.value)"
+            >
+              <span class="dot" aria-hidden="true">{{ option.value }}</span>
+              <span class="scale-label">{{ option.label }}</span>
+            </button>
+          }
+        </div>
+      </li>
+    }
+  </ol>
+
+  <nav class="pager" aria-label="Страницы анкеты">
+    <button
+      class="btn btn-ghost"
+      type="button"
+      (click)="previous()"
+      [disabled]="page() === 0"
+    >
+      ← Назад
+    </button>
+    <span class="pager-label">{{ rangeLabel() }} · страница {{ page() + 1 }} из {{ pageCount() }}</span>
+    <button
+      class="btn btn-ghost"
+      type="button"
+      (click)="next()"
+      [disabled]="page() >= pageCount() - 1"
+    >
+      Вперёд →
+    </button>
+  </nav>
+
+  <div class="finish">
+    <p>
+      Дальше — диаграмма качеств. Если анкета заполнена не полностью, она
+      откроется с равномерным профилем, и его можно будет откалибровать вручную.
+    </p>
+    <button class="btn btn-primary btn-lg" type="button" (click)="goToDiagram()">
+      К диаграмме
+    </button>
+  </div>
+</section>

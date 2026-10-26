@@ -1,0 +1,102 @@
+<section class="page">
+  <header class="page-head">
+    <div>
+      <p class="eyebrow">Шаг 3 · калибровка</p>
+      <h1>Диаграмма качеств</h1>
+      <p class="lead">
+        Площадь каждой области равна весу качества — как клетки одного тела.
+        Каждая шестиугольная клетка — одна единица пула. Меняйте веса справа:
+        сумма всегда остаётся {{ pool }}.
+      </p>
+    </div>
+    <a class="btn btn-primary" routerLink="/result">К результату</a>
+  </header>
+
+  <div class="diagram-layout">
+    <div class="mosaic-card">
+      @if (mosaic().cells.length) {
+        <svg
+          class="mosaic"
+          [attr.viewBox]="'0 0 ' + mosaic().width + ' ' + mosaic().height"
+          role="img"
+          aria-label="Мозаика качеств: площадь клеток пропорциональна весам"
+        >
+          <g [attr.transform]="translate()">
+            @for (cell of mosaic().cells; track $index) {
+              <polygon
+                [attr.points]="cell.points"
+                [attr.fill]="color(qualities[cell.qualityIndex].id)"
+                stroke="rgba(255, 255, 255, 0.62)"
+                stroke-width="0.7"
+              >
+                <title>
+                  {{ qualities[cell.qualityIndex].name }} —
+                  {{ weights()[cell.qualityIndex] }} ед. ({{
+                    share(cell.qualityIndex)
+                  }}%)
+                </title>
+              </polygon>
+            }
+
+            @for (label of mosaic().labels; track label.qualityIndex) {
+              <text
+                class="mosaic-label"
+                [attr.x]="label.x"
+                [attr.y]="label.y"
+                [attr.font-size]="label.fontSize"
+                text-anchor="middle"
+                dominant-baseline="middle"
+              >
+                {{ weights()[label.qualityIndex] }}
+              </text>
+            }
+          </g>
+        </svg>
+      } @else {
+        <p class="empty">Нет данных для диаграммы.</p>
+      }
+
+      <p class="mosaic-note">
+        Число на области — вес качества в единицах пула. 20 из 480 — примерно
+        4,2% диаграммы.
+      </p>
+    </div>
+
+    <aside class="calibrate">
+      <div class="calibrate-head">
+        <h2>Веса качеств</h2>
+        <button class="btn btn-ghost" type="button" (click)="reset()">
+          Сбросить
+        </button>
+      </div>
+      <p class="hint">
+        Изменение одного веса пропорционально перераспределяет остальные. Вес —
+        целое число от 1 до {{ maxWeight }}.
+      </p>
+
+      <ul class="rows">
+        @for (quality of qualities; track quality.id; let i = $index) {
+          <li class="row">
+            <span
+              class="swatch"
+              [style.background]="color(quality.id)"
+              aria-hidden="true"
+            ></span>
+            <span class="row-name" [title]="quality.name">{{ quality.name }}</span>
+            <input
+              class="range"
+              type="range"
+              min="1"
+              [max]="maxWeight"
+              [value]="weights()[i]"
+              (input)="onWeight(i, $event)"
+              [attr.aria-label]="quality.name"
+            />
+            <span class="row-value">{{ weights()[i] }}</span>
+            <span class="row-share">{{ share(i) }}%</span>
+          </li>
+        }
+      </ul>
+    </aside>
+  </div>
+</section>

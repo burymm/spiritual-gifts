@@ -1,0 +1,66 @@
+<section class="page">
+  <header class="page-head">
+    <div>
+      <p class="eyebrow">Шаг 4 · результат</p>
+      <h1>Возможные духовные дары</h1>
+      <p class="lead">
+        {{ sourceLabel() }}. Проценты — это близость профиля качеств к
+        идеальному профилю дара внутри модели. Это подсказка для размышления, а
+        не диагноз и не статистически подтверждённая вероятность.
+      </p>
+    </div>
+    <a class="btn btn-ghost" routerLink="/diagram">Изменить диаграмму</a>
+  </header>
+
+  <div class="top-grid">
+    @for (item of top(); track item.score.giftId) {
+      <article class="top-card" [class.is-strong]="item.strength === 'strong'">
+        <span class="rank">{{ item.rank }}</span>
+        <h2>{{ item.score.giftName }}</h2>
+        <p class="percent">{{ percent(item) }}<span>%</span></p>
+        <span
+          class="badge"
+          [class.badge-strong]="item.strength === 'strong'"
+          [class.badge-possible]="item.strength === 'possible'"
+          [class.badge-weak]="item.strength === 'weak'"
+        >
+          {{ strengthLabel(item.strength) }}
+        </span>
+      </article>
+    }
+  </div>
+
+  <section class="all">
+    <div class="all-head">
+      <h2>Все 22 дара</h2>
+      <span class="hint">
+        сильное выражение — от {{ strongThreshold }}%, слабая зона — ниже
+        {{ weakThreshold }}%
+      </span>
+    </div>
+
+    <ul class="gift-list">
+      @for (item of result().interpretations; track item.score.giftId) {
+        <li class="gift-row" [class.is-top]="item.top">
+          <span class="gift-rank">{{ item.rank }}</span>
+          <span class="gift-name">{{ item.score.giftName }}</span>
+          <span class="gift-bar">
+            <span
+              class="gift-fill"
+              [class.strong]="item.strength === 'strong'"
+              [class.weak]="item.strength === 'weak'"
+              [style.width.%]="width(item.score.display)"
+            ></span>
+          </span>
+          <span class="gift-value">{{ percent(item) }}%</span>
+        </li>
+      }
+    </ul>
+  </section>
+
+  <p class="footnote">
+    Отрицательные значения модели показываются как 0%: результат — рекомендация,
+    а не руководство. Порог сильного выражения — {{ strongThreshold }}%,
+    проверяется на реальных результатах.
+  </p>
+</section>
