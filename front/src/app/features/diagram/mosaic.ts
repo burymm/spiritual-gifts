@@ -1,7 +1,7 @@
 /**
  * Weighted polygonal mosaic on a hex lattice.
  *
- * The pool of weights is an integer (480 for 24 qualities), so the mosaic uses
+ * The pool of weights is an integer (1200 for 24 qualities), so the mosaic uses
  * exactly `pool` hex cells — one cell per weight unit. Area is therefore
  * *exactly* proportional to weight, which is what the diagram promises.
  *

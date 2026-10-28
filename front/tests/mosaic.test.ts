@@ -40,10 +40,10 @@ function isContiguous(
 
 describe('hex mosaic', () => {
   it('uses exactly one cell per weight unit', () => {
-    const weights = Array(24).fill(20);
+    const weights = Array(24).fill(50);
     const mosaic = buildMosaic(weights, { size: SIZE });
 
-    expect(mosaic.cells).toHaveLength(480);
+    expect(mosaic.cells).toHaveLength(1200);
     expect(mosaic.labels).toHaveLength(24);
 
     const counts = countsByQuality(mosaic.cells.map((c) => c.qualityIndex));
@@ -53,23 +53,23 @@ describe('hex mosaic', () => {
   });
 
   it('keeps every quality region contiguous for a uniform profile', () => {
-    const mosaic = buildMosaic(Array(24).fill(20), { size: SIZE });
+    const mosaic = buildMosaic(Array(24).fill(50), { size: SIZE });
     for (let i = 0; i < 24; i++) {
       expect(isContiguous(mosaic.cells, i), `quality ${i + 1}`).toBe(true);
     }
   });
 
   it('keeps every quality region contiguous for an uneven profile', () => {
-    const weights = Array(24).fill(4);
-    weights[0] = 180;
-    weights[5] = 100;
-    weights[7] = 80;
-    weights[8] = 40;
-    // 180 + 100 + 80 + 40 + 20 × 4 = 480
-    expect(weights.reduce((a, b) => a + b, 0)).toBe(480);
+    const weights = Array(24).fill(10);
+    weights[0] = 100;
+    weights[5] = 450;
+    weights[6] = 250;
+    weights[8] = 200;
+    // 450 + 250 + 200 + 100 + 10 × 20 = 1200
+    expect(weights.reduce((a, b) => a + b, 0)).toBe(1200);
 
     const mosaic = buildMosaic(weights, { size: SIZE });
-    expect(mosaic.cells).toHaveLength(480);
+    expect(mosaic.cells).toHaveLength(1200);
 
     const counts = countsByQuality(mosaic.cells.map((c) => c.qualityIndex));
     weights.forEach((weight, index) => {
@@ -90,7 +90,7 @@ describe('hex mosaic', () => {
 
     for (let sample = 0; sample < 12; sample++) {
       const weights = Array(24).fill(1);
-      let extra = 480 - 24;
+      let extra = 1200 - 24;
       while (extra > 0) {
         const index = Math.floor(random() * 24);
         const add = Math.min(extra, 1 + Math.floor(random() * 40));
@@ -116,8 +116,8 @@ describe('hex mosaic', () => {
 
   it('handles the most lopsided allowed profile', () => {
     const weights = Array(24).fill(1);
-    weights[0] = 480 - 23;
-    expect(weights.reduce((a, b) => a + b, 0)).toBe(480);
+    weights[0] = 1200 - 23;
+    expect(weights.reduce((a, b) => a + b, 0)).toBe(1200);
 
     const mosaic = buildMosaic(weights, { size: SIZE });
     const counts = countsByQuality(mosaic.cells.map((c) => c.qualityIndex));

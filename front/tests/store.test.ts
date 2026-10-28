@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { BASE_WEIGHT } from '../src/app/core/config';
 import { buildMosaic } from '../src/app/features/diagram/mosaic';
 import { AssessmentStore } from '../src/app/state/assessment.store';
 
@@ -59,7 +60,9 @@ describe('assessment store', () => {
     }
 
     expect(store.source()).toBe('uniform');
-    expect(store.weights().every((weight) => weight === 20)).toBe(true);
+    expect(
+      store.weights().every((weight) => weight === BASE_WEIGHT),
+    ).toBe(true);
   });
 
   it('applies a complete survey without leaving the page', () => {
@@ -114,5 +117,26 @@ describe('assessment store', () => {
         `quality ${index + 1}`,
       ).toBe(1);
     });
+  });
+
+  it('bumps the revision on user changes but not on hydration', () => {
+    const store = new AssessmentStore();
+    const start = store.revision();
+
+    store.setAnswer(store.dataset.questions[0].id, 4);
+    expect(store.revision()).toBeGreaterThan(start);
+
+    const afterEdit = store.revision();
+    store.hydrate({
+      answers: { 1: 3 },
+      weights: Array(store.qualityCount).fill(50),
+      source: 'survey',
+    });
+
+    // Restoring is not a user change: persistence must not save it back.
+    expect(store.revision()).toBe(afterEdit);
+    expect(store.answerOf(1)).toBe(3);
+    expect(store.source()).toBe('survey');
+    expect(store.weights().reduce((a, b) => a + b, 0)).toBe(store.pool);
   });
 });

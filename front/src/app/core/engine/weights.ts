@@ -1,7 +1,7 @@
 import type { WeightVector } from '../models';
 import { BASE_WEIGHT } from '../config';
 
-/** Total weight pool for `count` qualities: 20 × N (480 for 24 qualities). */
+/** Total weight pool for `count` qualities: 50 × N (1200 for 24 qualities). */
 export function poolFor(count: number): number {
   return BASE_WEIGHT * count;
 }
@@ -9,15 +9,16 @@ export function poolFor(count: number): number {
 /**
  * Maximum weight of one quality.
  *
- * Docs §2.2 / «Контекст проекта»: the agreed limit is N × 19 (456 for 24).
- * The purely arithmetic bound is 457 (pool minus the minimum 1 for each of the
- * other 23 qualities), but the agreed rule is stricter.
+ * Docs §2.2 / «Контекст проекта»: the agreed limit is "everything but one unit
+ * per other quality", i.e. N × (BASE_WEIGHT − 1) — 1176 for 24 qualities.
+ * The purely arithmetic bound is 1177 (pool minus the minimum 1 for each of
+ * the other 23 qualities), so the rule stays one unit stricter.
  */
 export function maxWeightFor(count: number): number {
   return poolFor(count) - count;
 }
 
-/** Equal split: 20 units per quality. */
+/** Equal split: BASE_WEIGHT units per quality. */
 export function uniformWeights(count: number): number[] {
   return Array.from({ length: count }, () => BASE_WEIGHT);
 }
@@ -68,27 +69,56 @@ export function largestRemainder(
 }
 
 /**
- * Distribute `total` units proportionally to `weights`, giving every entry at
- * least 1 unit. Used when re-splitting the pool after a manual edit.
+ * Where the previous redistribution stopped.
+ *
+ * Without it every edit would take (or give) its units starting from the first
+ * quality again, so the first rows of the list would carry the whole load while
+ * the rest never move. The counter makes successive edits continue the circle.
  */
-function allocateProportionalWithMin(
-  weights: readonly number[],
+let redistributeCursor = 0;
+
+/**
+ * Move from `current` to a vector that sums exactly to `total`, one unit at a
+ * time in list order (round robin), keeping every entry at least 1. The walk
+ * starts where the previous redistribution stopped, so over a few edits every
+ * quality takes part instead of only the first rows.
+ *
+ * `exclude` holds the freshly edited value and is never touched.
+ */
+function allocateRoundRobin(
+  current: readonly number[],
   total: number,
+  exclude: number,
 ): number[] {
-  const n = weights.length;
+  const n = current.length;
   if (n === 0) return [];
-  if (total < n) {
-    throw new Error(`Cannot give ${n} qualities at least 1 unit from ${total}`);
+
+  const out = current.slice();
+  let delta = total - out.reduce((a, b) => a + b, 0);
+  let pos = ((redistributeCursor % n) + n) % n;
+
+  while (delta !== 0) {
+    let moved = false;
+    for (let step = 0; step < n && delta !== 0; step++) {
+      if (pos !== exclude) {
+        if (delta > 0) {
+          out[pos] += 1;
+          delta -= 1;
+          moved = true;
+        } else if (out[pos] > 1) {
+          out[pos] -= 1;
+          delta += 1;
+          moved = true;
+        }
+      }
+      pos = (pos + 1) % n;
+    }
+    // Only reachable when `total` is below the minimum of 1 per entry.
+    if (!moved) break;
   }
 
-  const extra = total - n;
-  const sum = weights.reduce((a, b) => a + b, 0);
-  const raw =
-    sum > 0
-      ? weights.map((w) => (w / sum) * extra)
-      : weights.map(() => extra / n);
-
-  return largestRemainder(raw, extra).map((v) => v + 1);
+  redistributeCursor = pos;
+  return out;
 }
 
 /**
@@ -167,8 +197,10 @@ export function validateWeights(
  * preserved. Returns a new array; the input is not mutated.
  *
  * The edited value is clamped to `[1, maxWeightFor(count)]`. The remaining
- * units are redistributed proportionally to the other weights, every other
- * quality keeping at least 1.
+ * units are moved one by one in list order (round robin) starting where the
+ * previous edit stopped, so the load is spread over all the other qualities
+ * instead of always landing on the first rows. Every other quality keeps at
+ * least 1.
  */
 export function setWeight(
   weights: WeightVector,
@@ -186,14 +218,9 @@ export function setWeight(
     Math.max(1, Math.round(next)),
   );
 
-  const others = weights.filter((_, i) => i !== index);
-  const restTotal = pool - clamped;
-  const redistributed = allocateProportionalWithMin(others, restTotal);
+  const result = weights.slice();
+  result[index] = clamped;
 
-  const result: number[] = [];
-  let cursor = 0;
-  for (let i = 0; i < weights.length; i++) {
-    result.push(i === index ? clamped : redistributed[cursor++]);
-  }
-  return result;
+  // `delta` below is the whole gap between the others and the pool they share.
+  return allocateRoundRobin(result, pool, index);
 }

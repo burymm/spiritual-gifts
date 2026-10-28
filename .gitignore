@@ -6,6 +6,10 @@ coverage/
 tmp/
 out-tsc/
 
+# Secrets
+.env
+!.env.example
+
 # Logs and local tooling
 *.log
 npm-debug.log*

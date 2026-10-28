@@ -14,13 +14,20 @@
 export const INCLUDE_CANDIDATE_QUESTIONS = true;
 
 /** Uniform target weight per quality; the pool is BASE_WEIGHT × quality count. */
-export const BASE_WEIGHT = 20;
+export const BASE_WEIGHT = 50;
 
 /** Displayed score ≥ this is marked as a strong expression (решение 26.10.2026). */
 export const STRONG_THRESHOLD = 75;
 
 /** Displayed score < this is marked as a weak zone. */
 export const WEAK_THRESHOLD = 50;
+
+/**
+ * Base URL of the Fastify API (папка back/). CORS на бэке разрешает origin
+ * этого фронта (CORS_ORIGIN в back/.env), поэтому менять адрес нужно только
+ * при переносе API на другой хост.
+ */
+export const API_BASE_URL = 'http://127.0.0.1:3000/api';
 
 /** How many gifts are shown as the highlighted top list. */
 export const TOP_N = 3;

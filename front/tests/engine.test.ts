@@ -36,13 +36,17 @@ function allAnswers(value: AnswerValue): Record<number, AnswerValue> {
   return answers;
 }
 
-/** Profile from docs: 180 + 100 + 80 + 40, the remaining 20 qualities get 4. */
+/**
+ * Profile from docs: 180 + 100 + 80 + 40 with the remaining 20 qualities at 4
+ * out of a 480 pool, rescaled ×2.5 to the current 1200 pool (1200 ÷ 480).
+ * The shares are identical, so the scores stay the documented ones.
+ */
 function documentedProfile(): number[] {
-  const w = Array.from({ length: N }, () => 4);
-  w[5] = 180; // quality 6 — Организаторские способности
-  w[6] = 100; // quality 7 — Дисциплинированность
-  w[8] = 80; //  quality 9 — Аккуратность
-  w[0] = 40; //  quality 1 — Инициативность
+  const w = Array.from({ length: N }, () => 10);
+  w[5] = 450; // quality 6 — Организаторские способности
+  w[6] = 250; // quality 7 — Дисциплинированность
+  w[8] = 200; // quality 9 — Аккуратность
+  w[0] = 100; // quality 1 — Инициативность
   return w;
 }
 
@@ -104,11 +108,11 @@ describe('dataset integrity', () => {
 });
 
 describe('weights', () => {
-  it('uniform start is 20 per quality with a 480 pool', () => {
+  it('uniform start is 50 per quality with a 1200 pool', () => {
     expect(N).toBe(24);
-    expect(POOL).toBe(480);
-    expect(uniformWeights(N)).toEqual(Array(24).fill(20));
-    expect(uniformWeights(N).reduce((a, b) => a + b, 0)).toBe(480);
+    expect(POOL).toBe(1200);
+    expect(uniformWeights(N)).toEqual(Array(24).fill(50));
+    expect(uniformWeights(N).reduce((a, b) => a + b, 0)).toBe(1200);
   });
 
   it('largest remainder keeps the exact sum', () => {
@@ -123,15 +127,15 @@ describe('weights', () => {
   });
 
   it('scales equal indexes to an even diagram', () => {
-    expect(proportionalWeights(Array(24).fill(3), 480)).toEqual(
-      Array(24).fill(20),
+    expect(proportionalWeights(Array(24).fill(3), 1200)).toEqual(
+      Array(24).fill(50),
     );
   });
 
   it('always sums to the pool for uneven indexes', () => {
     const indexes = Array.from({ length: 24 }, (_, i) => 1 + ((i * 7) % 9) / 2);
-    const weights = proportionalWeights(indexes, 480);
-    expect(weights.reduce((a, b) => a + b, 0)).toBe(480);
+    const weights = proportionalWeights(indexes, 1200);
+    expect(weights.reduce((a, b) => a + b, 0)).toBe(1200);
     expect(weights.every((w) => w >= 1)).toBe(true);
   });
 
@@ -150,16 +154,16 @@ describe('weights', () => {
     const start = uniformWeights(N);
     const grown = setWeight(start, 0, 100, N);
     expect(grown[0]).toBe(100);
-    expect(grown.reduce((a, b) => a + b, 0)).toBe(480);
+    expect(grown.reduce((a, b) => a + b, 0)).toBe(1200);
     expect(grown.every((w) => w >= 1)).toBe(true);
 
-    const clamped = setWeight(start, 0, 999, N);
-    expect(clamped[0]).toBe(456);
-    expect(clamped.reduce((a, b) => a + b, 0)).toBe(480);
+    const clamped = setWeight(start, 0, 9999, N);
+    expect(clamped[0]).toBe(1176);
+    expect(clamped.reduce((a, b) => a + b, 0)).toBe(1200);
 
     const shrunk = setWeight(start, 5, 1, N);
     expect(shrunk[5]).toBe(1);
-    expect(shrunk.reduce((a, b) => a + b, 0)).toBe(480);
+    expect(shrunk.reduce((a, b) => a + b, 0)).toBe(1200);
   });
 });
 
@@ -197,27 +201,27 @@ describe('quality indexes and survey completeness', () => {
     const result = assess(partial, DATASET);
     expect(result.source).toBe('uniform');
     expect(result.indexes).toBeNull();
-    expect(result.weights).toEqual(Array(24).fill(20));
+    expect(result.weights).toEqual(Array(24).fill(50));
   });
 
   it('uses the survey when it is complete', () => {
     const result = assess(allAnswers(3), DATASET);
     expect(result.source).toBe('survey');
-    expect(result.weights).toEqual(Array(24).fill(20));
+    expect(result.weights).toEqual(Array(24).fill(50));
 
     const skewed = allAnswers(1);
     for (const id of DATASET.qualities[0].questionIds) skewed[id] = 5;
     const skewedResult = assess(skewed, DATASET);
     expect(skewedResult.source).toBe('survey');
     expect(skewedResult.weights[0]).toBeGreaterThan(skewedResult.weights[1]);
-    expect(skewedResult.weights.reduce((a, b) => a + b, 0)).toBe(480);
+    expect(skewedResult.weights.reduce((a, b) => a + b, 0)).toBe(1200);
   });
 });
 
 describe('gift scoring', () => {
   it('reproduces the documented example (Организатор 83,63 / Руководитель 33,41)', () => {
     const weights = documentedProfile();
-    expect(weights.reduce((a, b) => a + b, 0)).toBe(480);
+    expect(weights.reduce((a, b) => a + b, 0)).toBe(1200);
 
     const result = assessWeights(weights, DATASET);
     const organizer = scoreOf(result.scores, 'Организатор / Администратор');
@@ -238,9 +242,9 @@ describe('gift scoring', () => {
 
   it('never displays a negative score', () => {
     const weights = Array.from({ length: N }, () => 1);
-    weights[9] = 456; // quality 10 — Финансовая дисциплина
+    weights[9] = 1176; // quality 10 — Финансовая дисциплина
     weights[0] = 2;
-    expect(weights.reduce((a, b) => a + b, 0)).toBe(480);
+    expect(weights.reduce((a, b) => a + b, 0)).toBe(1200);
 
     const result = assessWeights(weights, DATASET);
     expect(result.scores.some((s) => s.score < 0)).toBe(true);
@@ -280,7 +284,7 @@ describe('360° aggregation', () => {
     const b = documentedProfile();
     const merged = aggregateProfiles([a, b], DATASET);
 
-    expect(merged.reduce((x, y) => x + y, 0)).toBe(480);
+    expect(merged.reduce((x, y) => x + y, 0)).toBe(1200);
     expect(merged).not.toEqual(a);
     expect(merged).not.toEqual(b);
 

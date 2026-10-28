@@ -57,8 +57,8 @@
       }
 
       <p class="mosaic-note">
-        Число на области — вес качества в единицах пула. 20 из 480 — примерно
-        4,2% диаграммы.
+        Число на области — вес качества в единицах пула. {{ baseWeight }} из
+        {{ pool }} — примерно {{ uniformShare }}% диаграммы.
       </p>
     </div>
 
@@ -70,7 +70,8 @@
         </button>
       </div>
       <p class="hint">
-        Изменение одного веса пропорционально перераспределяет остальные. Вес —
+        Вес можно двигать ползунком, вписать числом или нажать − / + (шаг 5) —
+        всё синхронно. Изменение одного веса перераспределяет остальные. Вес —
         целое число от 1 до {{ maxWeight }}.
       </p>
 
@@ -90,9 +91,37 @@
               [max]="maxWeight"
               [value]="weights()[i]"
               (input)="onWeight(i, $event)"
-              [attr.aria-label]="quality.name"
+              [attr.aria-label]="quality.name + ': вес, ползунок'"
             />
-            <span class="row-value">{{ weights()[i] }}</span>
+            <span class="stepper">
+              <button
+                class="step-btn"
+                type="button"
+                (click)="stepWeight(i, -step)"
+                [attr.aria-label]="quality.name + ': уменьшить на ' + step"
+              >
+                −
+              </button>
+              <input
+                class="row-value"
+                type="number"
+                inputmode="numeric"
+                min="1"
+                [max]="maxWeight"
+                [step]="step"
+                [value]="weights()[i]"
+                (change)="onWeightTyped(i, $event)"
+                [attr.aria-label]="quality.name + ': вес, ввод числом'"
+              />
+              <button
+                class="step-btn"
+                type="button"
+                (click)="stepWeight(i, step)"
+                [attr.aria-label]="quality.name + ': увеличить на ' + step"
+              >
+                +
+              </button>
+            </span>
             <span class="row-share">{{ share(i) }}%</span>
           </li>
         }
