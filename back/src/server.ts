@@ -38,8 +38,18 @@ const app = await buildApp({
   repo: new PostgresProfileRepository(pool),
   rules: { qualityCount: config.qualityCount, baseWeight: config.baseWeight },
   corsOrigin: config.corsOrigin,
+  auth: config.auth,
   logger: true,
 });
+
+if (config.auth.secretEphemeral) {
+  console.warn(
+    '[api] SESSION_SECRET не задан — токены подписаны случайным секретом: после рестарта все входы слетят. Для постоянства добавьте SESSION_SECRET в back/.env',
+  );
+}
+console.log(
+  `[api] вход: ${config.auth.mode === 'google' ? 'Google OAuth' : 'эмуляция входа (mock)'}`,
+);
 
 const shutdown = async (signal: string): Promise<void> => {
   console.log(`[api] ${signal}, останавливаюсь…`);

@@ -26,6 +26,13 @@ export class MemoryProfileRepository implements ProfileRepository {
     return this.rows.get(id) ?? null;
   }
 
+  async findLatestByOwner(ownerEmail: string): Promise<Profile | null> {
+    const owned = [...this.rows.values()]
+      .filter((profile) => profile.ownerEmail === ownerEmail)
+      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+    return owned[0] ?? null;
+  }
+
   async update(id: string, patch: NewProfileInput): Promise<Profile | null> {
     const existing = this.rows.get(id);
     if (!existing) return null;

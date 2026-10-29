@@ -9,6 +9,8 @@ export type NewProfileInput = Omit<Profile, 'id' | 'createdAt' | 'updatedAt'>;
 export interface ProfileRepository {
   create(input: NewProfileInput): Promise<Profile>;
   findById(id: string): Promise<Profile | null>;
+  /** Последний профиль пользователя: для входившего — его актуальные результаты. */
+  findLatestByOwner(ownerEmail: string): Promise<Profile | null>;
   update(id: string, patch: NewProfileInput): Promise<Profile | null>;
   remove(id: string): Promise<boolean>;
   ping(): Promise<boolean>;

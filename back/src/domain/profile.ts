@@ -15,6 +15,8 @@ export interface Profile {
   readonly answers: Record<string, number>;
   readonly weights: number[];
   readonly source: Source;
+  /** Почта вошедшего пользователя; null — профиль без входа, ключ сам id. */
+  readonly ownerEmail: string | null;
   readonly createdAt: string;
   readonly updatedAt: string;
 }

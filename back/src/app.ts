@@ -1,6 +1,8 @@
 import cors from '@fastify/cors';
 import Fastify, { type FastifyError, type FastifyInstance } from 'fastify';
 
+import { registerAuthRoutes, userOf } from './auth/routes.js';
+import type { AuthConfig } from './config.js';
 import {
   createSchemas,
   issueMessages,
@@ -13,7 +15,22 @@ export interface AppOptions {
   readonly repo: ProfileRepository;
   readonly rules: WeightRules;
   readonly corsOrigin?: string;
+  /** Настройки входа; без них — эмуляция входа (так удобно в тестах). */
+  readonly auth?: AuthConfig;
   readonly logger?: boolean;
+}
+
+/** Конфигурация по умолчанию: режим mock, секрет живёт только до рестарта. */
+function fallbackAuth(): AuthConfig {
+  return {
+    mode: 'mock',
+    secret: 'fallback-secret-только-для-тестов',
+    secretEphemeral: true,
+    frontOrigin: 'http://localhost:4200',
+    apiPublicOrigin: 'http://127.0.0.1:3000',
+    google: null,
+    tokenTtlSeconds: 720 * 3600,
+  };
 }
 
 interface IdParams {
@@ -35,6 +52,7 @@ const DB_UNAVAILABLE_CODES = new Set([
 
 export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
   const { repo, rules } = options;
+  const auth = options.auth ?? fallbackAuth();
   const schemas = createSchemas(rules);
 
   const app = Fastify({ logger: options.logger ?? false });
@@ -42,6 +60,7 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
   await app.register(cors, {
     origin: options.corsOrigin ?? true,
     methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
   });
 
   // Fastify по умолчанию отклоняет запрос с content-type json и пустым телом
@@ -90,6 +109,8 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
     return reply.code(up ? 200 : 503).send({ status: up ? 'ok' : 'degraded', db: up });
   });
 
+  registerAuthRoutes(app, auth);
+
   // Создать профиль: { title?, answers?, weights, source? }
   app.post('/api/profiles', async (request, reply) => {
     const parsed = schemas.create.safeParse(request.body);
@@ -104,12 +125,28 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
       answers: parsed.data.answers,
       weights: parsed.data.weights,
       source: parsed.data.source,
+      // Владелец — из токена, а не из тела: клиент не может записать чужую почту.
+      ownerEmail: userOf(request, auth),
     };
     const profile = await repo.create(input);
     return reply.code(201).send(profile);
   });
 
-  // Прочитать профиль по ссылке
+  // Профиль вошедшего пользователя: фронт берёт его сразу после входа
+  app.get('/api/profiles/mine', async (request, reply) => {
+    const email = userOf(request, auth);
+    if (email === null) {
+      return reply.code(401).send({ error: 'Вход не выполнен' });
+    }
+    const profile = await repo.findLatestByOwner(email);
+    if (profile === null) {
+      return reply.code(404).send({ error: 'Сохранённого профиля пока нет' });
+    }
+    return reply.send(profile);
+  });
+
+  // Прочитать профиль по ссылке. Чужой (привязанный к другой почте) — 404,
+  // чтобы сам факт существования не выдавался.
   app.get<{ Params: IdParams }>('/api/profiles/:id', async (request, reply) => {
     const id = schemas.id.safeParse(request.params.id);
     if (!id.success) {
@@ -118,6 +155,9 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
 
     const profile = await repo.findById(id.data);
     if (profile === null) {
+      return reply.code(404).send({ error: 'Профиль не найден' });
+    }
+    if (profile.ownerEmail !== null && profile.ownerEmail !== userOf(request, auth)) {
       return reply.code(404).send({ error: 'Профиль не найден' });
     }
     return reply.send(profile);
@@ -141,6 +181,9 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
     if (existing === null) {
       return reply.code(404).send({ error: 'Профиль не найден' });
     }
+    if (existing.ownerEmail !== null && existing.ownerEmail !== userOf(request, auth)) {
+      return reply.code(404).send({ error: 'Профиль не найден' });
+    }
 
     const merged = {
       title: patch.data.title !== undefined ? patch.data.title ?? null : existing.title,
@@ -161,6 +204,8 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
       answers: full.data.answers,
       weights: full.data.weights,
       source: full.data.source,
+      // Профиль без входа первый вошедший «забирает» себе; свой остаётся своим.
+      ownerEmail: existing.ownerEmail ?? userOf(request, auth),
     });
     return reply.send(updated);
   });
@@ -172,10 +217,15 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
       return reply.code(400).send({ error: 'Некорректный идентификатор профиля' });
     }
 
-    const removed = await repo.remove(id.data);
-    if (!removed) {
+    const existing = await repo.findById(id.data);
+    if (existing === null) {
       return reply.code(404).send({ error: 'Профиль не найден' });
     }
+    if (existing.ownerEmail !== null && existing.ownerEmail !== userOf(request, auth)) {
+      return reply.code(404).send({ error: 'Профиль не найден' });
+    }
+
+    await repo.remove(id.data);
     return reply.code(204).send();
   });
 

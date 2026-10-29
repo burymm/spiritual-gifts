@@ -34,5 +34,22 @@ export const routes: Routes = [
         (m) => m.ResultComponent,
       ),
   },
+  {
+    path: 'login',
+    title: 'Вход — Карта духовных даров',
+    loadComponent: () =>
+      import('./features/login/login.component').then(
+        (m) => m.LoginComponent,
+      ),
+  },
+  {
+    // Возврат от Google: в адресе лежит #token=, дальше на главную
+    path: 'auth/callback',
+    title: 'Вход — Карта духовных даров',
+    loadComponent: () =>
+      import('./features/login/auth-callback.component').then(
+        (m) => m.AuthCallbackComponent,
+      ),
+  },
   { path: '**', redirectTo: 'instruction' },
 ];

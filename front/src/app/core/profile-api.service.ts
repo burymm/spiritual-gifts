@@ -39,6 +39,13 @@ export class ProfileApi {
     );
   }
 
+  /** Профиль вошедшего пользователя; 404 — у почты пока ничего нет. */
+  mine(): Promise<StoredProfile> {
+    return firstValueFrom(
+      this.http.get<StoredProfile>(`${API_BASE_URL}/profiles/mine`),
+    );
+  }
+
   update(id: string, payload: ProfilePayload): Promise<StoredProfile> {
     return firstValueFrom(
       this.http.patch<StoredProfile>(`${API_BASE_URL}/profiles/${id}`, payload),

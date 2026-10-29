@@ -1,0 +1,99 @@
+.login {
+  display: flex;
+  justify-content: center;
+}
+
+.card {
+  width: min(520px, 100%);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+  padding: 28px 26px 24px;
+}
+
+.card h1 {
+  margin: 4px 0 10px;
+  font-size: clamp(22px, 3vw, 28px);
+}
+
+.card .lead {
+  margin-bottom: 18px;
+}
+
+.alert {
+  margin: 0 0 14px;
+  padding: 10px 14px;
+  border-left: 3px solid #d9534f;
+  background: #fdf3f3;
+  border-radius: 0 var(--radius) var(--radius) 0;
+  font-size: 13.5px;
+  color: #8a2f2c;
+}
+
+.hint {
+  margin: 0 0 16px;
+  padding: 12px 14px;
+  background: var(--surface-alt);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius);
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--text-soft);
+}
+
+.who {
+  margin: 0 0 16px;
+  font-size: 14.5px;
+}
+
+.muted {
+  margin: 12px 0 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.form label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-soft);
+}
+
+.form input {
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  font: inherit;
+  font-size: 14.5px;
+  background: var(--surface);
+  color: var(--text);
+}
+
+.form input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.form .btn {
+  margin-top: 4px;
+}
+
+.skip {
+  display: inline-block;
+  margin-top: 18px;
+  font-size: 13.5px;
+  color: var(--muted);
+  text-decoration: none;
+}
+
+.skip:hover {
+  color: var(--accent-ink);
+}

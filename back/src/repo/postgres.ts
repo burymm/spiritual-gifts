@@ -9,12 +9,13 @@ interface Row {
   answers: Record<string, number>;
   weights: number[];
   source: Source;
+  owner_email: string | null;
   created_at: Date | string;
   updated_at: Date | string;
 }
 
 const SELECT_COLUMNS =
-  'id, title, answers, weights, source, created_at, updated_at';
+  'id, title, answers, weights, source, owner_email, created_at, updated_at';
 
 function iso(value: Date | string): string {
   return value instanceof Date ? value.toISOString() : new Date(value).toISOString();
@@ -27,6 +28,7 @@ function toProfile(row: Row): Profile {
     answers: row.answers ?? {},
     weights: row.weights ?? [],
     source: row.source,
+    ownerEmail: row.owner_email ?? null,
     createdAt: iso(row.created_at),
     updatedAt: iso(row.updated_at),
   };
@@ -41,14 +43,15 @@ export class PostgresProfileRepository implements ProfileRepository {
 
   async create(input: NewProfileInput): Promise<Profile> {
     const result = await this.pool.query<Row>(
-      `insert into profiles (title, answers, weights, source)
-       values ($1, $2::jsonb, $3::jsonb, $4)
+      `insert into profiles (title, answers, weights, source, owner_email)
+       values ($1, $2::jsonb, $3::jsonb, $4, $5)
        returning ${SELECT_COLUMNS}`,
       [
         input.title,
         JSON.stringify(input.answers),
         JSON.stringify(input.weights),
         input.source,
+        input.ownerEmail,
       ],
     );
     return toProfile(result.rows[0]);
@@ -58,6 +61,17 @@ export class PostgresProfileRepository implements ProfileRepository {
     const result = await this.pool.query<Row>(
       `select ${SELECT_COLUMNS} from profiles where id = $1`,
       [id],
+    );
+    return result.rows[0] ? toProfile(result.rows[0]) : null;
+  }
+
+  async findLatestByOwner(ownerEmail: string): Promise<Profile | null> {
+    const result = await this.pool.query<Row>(
+      `select ${SELECT_COLUMNS} from profiles
+       where owner_email = $1
+       order by updated_at desc
+       limit 1`,
+      [ownerEmail],
     );
     return result.rows[0] ? toProfile(result.rows[0]) : null;
   }
@@ -77,6 +91,9 @@ export class PostgresProfileRepository implements ProfileRepository {
 
     params.push(patch.source);
     sets.push(`source = $${params.length}`);
+
+    params.push(patch.ownerEmail);
+    sets.push(`owner_email = $${params.length}`);
 
     params.push(id);
 

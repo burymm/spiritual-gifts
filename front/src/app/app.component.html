@@ -11,6 +11,19 @@
       <a routerLink="/diagram" routerLinkActive="is-active">Диаграмма</a>
       <a routerLink="/result" routerLinkActive="is-active">Результат</a>
     </nav>
+
+    <div class="account">
+      @if (auth.signedIn()) {
+        <span class="account-email" [title]="auth.email() ?? ''">
+          {{ auth.email() }}
+        </span>
+        <button class="account-exit" type="button" (click)="signOut()">
+          Выйти
+        </button>
+      } @else {
+        <a class="account-login" routerLink="/login">Войти</a>
+      }
+    </div>
   </header>
 
   <main class="content">
@@ -19,6 +32,6 @@
 
   <footer class="footer">
     <span>Прототип. Матрица даров — рабочая гипотеза, не диагноз.</span>
-    <span>Профиль сохраняется автоматически и без входа — восстанавливается в этом браузере.</span>
+    <span>Профиль сохраняется автоматически: без входа — в этом браузере, после входа — на вашей почте.</span>
   </footer>
 </div>

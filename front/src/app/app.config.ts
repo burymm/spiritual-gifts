@@ -4,18 +4,20 @@ import {
   provideAppInitializer,
   provideZoneChangeDetection,
 } from '@angular/core';
-import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import { provideRouter } from '@angular/router';
 
 import { routes } from './app.routes';
+import { authInterceptor } from './core/auth.interceptor';
 import { ProfilePersistence } from './state/profile-persistence.service';
 
 export const appConfig: ApplicationConfig = {
   providers: [
     provideZoneChangeDetection({ eventCoalescing: true }),
     provideRouter(routes),
-    provideHttpClient(),
-    // Восстанавливаем сохранённый профиль до первого кадра.
+    // Интерсептор подписывает запросы к API токеном входа.
+    provideHttpClient(withInterceptors([authInterceptor])),
+    // Восстанавливаем вход, а затем сохранённый профиль — до первого кадра.
     provideAppInitializer(() => inject(ProfilePersistence).restore()),
   ],
 };
