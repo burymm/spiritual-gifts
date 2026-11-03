@@ -1,16 +1,18 @@
 <div class="shell">
   <header class="topbar">
-    <a class="brand" routerLink="/instruction" aria-label="На главную">
+    <a class="brand" routerLink="/" aria-label="На главную">
       <span class="brand-mark" aria-hidden="true"></span>
       <span class="brand-text">Духовные дары</span>
     </a>
 
-    <nav class="nav" aria-label="Разделы">
-      <a routerLink="/instruction" routerLinkActive="is-active">Инструкция</a>
-      <a routerLink="/survey" routerLinkActive="is-active">Анкета</a>
-      <a routerLink="/diagram" routerLinkActive="is-active">Диаграмма</a>
-      <a routerLink="/result" routerLinkActive="is-active">Результат</a>
-    </nav>
+    @if (auth.signedIn()) {
+      <nav class="nav" aria-label="Разделы">
+        <a routerLink="/instruction" routerLinkActive="is-active">Инструкция</a>
+        <a routerLink="/survey" routerLinkActive="is-active">Анкета</a>
+        <a routerLink="/diagram" routerLinkActive="is-active">Диаграмма</a>
+        <a routerLink="/result" routerLinkActive="is-active">Результат</a>
+      </nav>
+    }
 
     <div class="account">
       @if (auth.signedIn()) {
@@ -32,6 +34,6 @@
 
   <footer class="footer">
     <span>Прототип. Матрица даров — рабочая гипотеза, не диагноз.</span>
-    <span>Профиль сохраняется автоматически: без входа — в этом браузере, после входа — на вашей почте.</span>
+    <span>Вход через Google обязателен: анкета и веса сохраняются на вашей почте.</span>
   </footer>
 </div>

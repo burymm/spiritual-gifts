@@ -1,6 +1,7 @@
 import { Injectable, Injector, effect, inject } from '@angular/core';
 
 import { AuthService } from '../core/auth.service';
+import { uniformWeights } from '../core/engine';
 import type { ProfilePayload } from '../core/profile-api.service';
 import { ProfileApi, statusOf } from '../core/profile-api.service';
 import { AssessmentStore } from './assessment.store';
@@ -54,9 +55,9 @@ export function hasSomethingToSave(payload: ProfilePayload): boolean {
  * Keeps the API in sync with the store: restores the profile once at startup,
  * then saves (debounced) after every change.
  *
- * До входа профиль живёт по ссылке-ключу (id в localStorage). После входа он
- * привязывается к почте: `GET /api/profiles/mine` — главный источник, а
- * локальный профиль без входа «забирается» аккаунту первым сохранением.
+ * Профиль всегда привязан к почте: `GET /api/profiles/mine` — главный
+ * источник. Локальный профиль, сохранённый до появления обязательного входа,
+ * «забирается» аккаунтом первым сохранением.
  *
  * Failures are non-fatal: the UI keeps working with local state and the next
  * change retries the save.
@@ -186,8 +187,14 @@ export class ProfilePersistence {
     this.restoring = true;
     try {
       if (email === null) {
+        // Выход: чужому аккаунту не должны достаться ответы предыдущего.
         this.id = null;
         forgetStoredId();
+        this.store.hydrate({
+          answers: {},
+          weights: uniformWeights(this.store.qualityCount),
+          source: 'uniform',
+        });
         return;
       }
       if (!(await this.loadMine())) this.pendingSave = true;
@@ -230,6 +237,8 @@ export class ProfilePersistence {
 
   private async save(): Promise<void> {
     if (this.restoring) return;
+    // Без входа сохранять некуда: профили привязаны к почте.
+    if (this.auth.email() === null) return;
     if (this.inFlight) {
       // Another save is running: pick up the latest state when it finishes.
       this.rerun = true;

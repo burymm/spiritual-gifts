@@ -1,10 +1,10 @@
 <section class="page login">
   <div class="card">
     <p class="eyebrow">Вход</p>
-    <h1>Сохранить результаты</h1>
+    <h1>Карта духовных даров</h1>
     <p class="lead">
-      Вход привязывает анкету и веса качеств к вашей почте: результаты
-      восстановятся на любом устройстве, где вы войдёте под той же почтой.
+      Приложение открывается только после входа: он привязывает анкету и веса
+      качеств к вашей почте, а результаты восстанавливаются на любом устройстве.
     </p>
 
     @if (error()) {
@@ -17,7 +17,9 @@
       <p class="who">
         Вы вошли как <strong>{{ auth.email() }}</strong>.
       </p>
-      <a class="btn btn-primary" routerLink="/instruction">Продолжить</a>
+      <button class="btn btn-primary" type="button" (click)="continueToApp()">
+        Продолжить
+      </button>
     } @else if (auth.mode() === 'google') {
       <button
         class="btn btn-primary btn-lg"
@@ -52,7 +54,5 @@
         Сервер недоступен — вход станет доступен, когда API снова ответит.
       </p>
     }
-
-    <a class="skip" routerLink="/instruction">Продолжить без входа →</a>
   </div>
 </section>

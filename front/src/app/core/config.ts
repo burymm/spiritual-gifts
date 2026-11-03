@@ -3,6 +3,8 @@
  * Keep this file as the single place to tune thresholds and the survey scope.
  */
 
+import { environment } from '../../environments/environment';
+
 /**
  * Include the candidate questions №201–214 in the survey.
  *
@@ -23,11 +25,12 @@ export const STRONG_THRESHOLD = 75;
 export const WEAK_THRESHOLD = 50;
 
 /**
- * Base URL of the Fastify API (папка back/). CORS на бэке разрешает origin
- * этого фронта (CORS_ORIGIN в back/.env), поэтому менять адрес нужно только
- * при переносе API на другой хост.
+ * Base URL of the Fastify API (папка back/). В dev это отдельный процесс на
+ * :3000 (CORS на бэке разрешает origin фронта, CORS_ORIGIN в back/.env),
+ * в проде — относительный `/api`: запрос уходит на тот же origin и попадает
+ * на проект бэка через rewrite в front/vercel.json.
  */
-export const API_BASE_URL = 'http://127.0.0.1:3000/api';
+export const API_BASE_URL = environment.apiBaseUrl;
 
 /** How many gifts are shown as the highlighted top list. */
 export const TOP_N = 3;

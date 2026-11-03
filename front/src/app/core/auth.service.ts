@@ -7,6 +7,8 @@ import { statusOf } from './profile-api.service';
 
 /** Где живёт токен между визитами; сама сессия проверяется сервером. */
 const TOKEN_KEY = 'spiritual-gifts:token';
+/** Раздел, в который пользователь шёл до входа через Google. */
+const RETURN_KEY = 'spiritual-gifts:return-url';
 
 /** Режим входа, который объявляет бэк: настоящий Google или эмуляция. */
 export type AuthMode = 'google' | 'mock';
@@ -16,6 +18,27 @@ export const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 function readStoredToken(): string | null {
   try {
     return globalThis.localStorage.getItem(TOKEN_KEY);
+  } catch {
+    return null;
+  }
+}
+
+/** Запоминает запрошенный раздел: Google уводит со страницы, а после возврата
+ * пользователь должен попасть туда, куда шёл. */
+export function rememberReturnUrl(url: string): void {
+  try {
+    globalThis.sessionStorage.setItem(RETURN_KEY, url);
+  } catch {
+    // Приватный режим — вернёмся на инструкцию.
+  }
+}
+
+/** Внутренний путь из rememberReturnUrl; чужие адреса отбрасываются. */
+export function takeReturnUrl(): string | null {
+  try {
+    const url = globalThis.sessionStorage.getItem(RETURN_KEY);
+    globalThis.sessionStorage.removeItem(RETURN_KEY);
+    return url !== null && url.startsWith('/') && !url.startsWith('//') ? url : null;
   } catch {
     return null;
   }

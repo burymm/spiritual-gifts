@@ -1,4 +1,9 @@
+import { existsSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 import cors from '@fastify/cors';
+import fastifyStatic from '@fastify/static';
 import Fastify, { type FastifyError, type FastifyInstance } from 'fastify';
 
 import { registerAuthRoutes, userOf } from './auth/routes.js';
@@ -18,6 +23,31 @@ export interface AppOptions {
   /** Настройки входа; без них — эмуляция входа (так удобно в тестах). */
   readonly auth?: AuthConfig;
   readonly logger?: boolean;
+  /**
+   * Каталог со собранным фронтом (back/public). Задан — Fastify раздаёт его
+   * как статику и отдаёт index.html на неизвестные не-API маршруты (SPA);
+   * не задан — работает только API (тесты, dev через ng serve).
+   */
+  readonly staticDir?: string;
+}
+
+/**
+ * Ищет собранный фронт. Путь зависит от того, откуда запущен код —
+ * src/, dist/ или бандл на Vercel (handler лежит в back/src/server.mjs),
+ * поэтому перебираем кандидатов и берём первый с index.html.
+ */
+export function findStaticDir(): string | null {
+  const here = fileURLToPath(new URL('.', import.meta.url));
+  const candidates = [
+    path.resolve(process.cwd(), 'public'),
+    path.resolve(process.cwd(), 'back/public'),
+    path.resolve(here, '../public'), // src/ и бандл back/src → back/public
+    path.resolve(here, '../../back/public'),
+    path.resolve(here, '../../../back/public'), // dist/src → back/public
+  ];
+  return (
+    candidates.find((dir) => existsSync(path.join(dir, 'index.html'))) ?? null
+  );
 }
 
 /** Конфигурация по умолчанию: режим mock, секрет живёт только до рестарта. */
@@ -100,9 +130,40 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
     return reply.code(500).send({ error: 'Внутренняя ошибка сервера' });
   });
 
-  app.setNotFoundHandler((_request, reply) =>
-    reply.code(404).send({ error: 'Маршрут не найден' }),
-  );
+  const staticDir = options.staticDir;
+  if (staticDir !== undefined) {
+    await app.register(fastifyStatic, {
+      root: staticDir,
+      prefix: '/',
+      index: ['index.html'],
+      setHeaders(res, filePath) {
+        // index.html меняется при каждом релизе — без кэша; хэшированные
+        // ассеты (main-ABC123DEF.js) — навсегда.
+        if (filePath.endsWith('index.html')) {
+          res.setHeader('cache-control', 'no-cache');
+        } else if (/[.-][A-Za-z0-9_-]{8,}\.[A-Za-z0-9]+$/.test(filePath)) {
+          res.setHeader('cache-control', 'public, max-age=31536000, immutable');
+        } else {
+          res.setHeader('cache-control', 'public, max-age=300');
+        }
+      },
+    });
+  }
+
+  app.setNotFoundHandler((request, reply) => {
+    const wantsHtml =
+      (request.method === 'GET' || request.method === 'HEAD') &&
+      (request.headers.accept ?? '').includes('text/html');
+    if (
+      staticDir !== undefined &&
+      wantsHtml &&
+      !request.url.startsWith('/api')
+    ) {
+      // SPA: любой неизвестный не-API маршрут отдаёт index.html
+      return reply.code(200).type('text/html').sendFile('index.html');
+    }
+    return reply.code(404).send({ error: 'Маршрут не найден' });
+  });
 
   app.get('/api/health', async (_request, reply) => {
     const up = await repo.ping();
@@ -113,6 +174,11 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
 
   // Создать профиль: { title?, answers?, weights, source? }
   app.post('/api/profiles', async (request, reply) => {
+    const ownerEmail = userOf(request, auth);
+    if (ownerEmail === null) {
+      return reply.code(401).send({ error: 'Вход не выполнен' });
+    }
+
     const parsed = schemas.create.safeParse(request.body);
     if (!parsed.success) {
       return reply
@@ -126,7 +192,7 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
       weights: parsed.data.weights,
       source: parsed.data.source,
       // Владелец — из токена, а не из тела: клиент не может записать чужую почту.
-      ownerEmail: userOf(request, auth),
+      ownerEmail,
     };
     const profile = await repo.create(input);
     return reply.code(201).send(profile);
@@ -148,6 +214,11 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
   // Прочитать профиль по ссылке. Чужой (привязанный к другой почте) — 404,
   // чтобы сам факт существования не выдавался.
   app.get<{ Params: IdParams }>('/api/profiles/:id', async (request, reply) => {
+    const email = userOf(request, auth);
+    if (email === null) {
+      return reply.code(401).send({ error: 'Вход не выполнен' });
+    }
+
     const id = schemas.id.safeParse(request.params.id);
     if (!id.success) {
       return reply.code(400).send({ error: 'Некорректный идентификатор профиля' });
@@ -157,7 +228,7 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
     if (profile === null) {
       return reply.code(404).send({ error: 'Профиль не найден' });
     }
-    if (profile.ownerEmail !== null && profile.ownerEmail !== userOf(request, auth)) {
+    if (profile.ownerEmail !== null && profile.ownerEmail !== email) {
       return reply.code(404).send({ error: 'Профиль не найден' });
     }
     return reply.send(profile);
@@ -165,6 +236,11 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
 
   // Частичное обновление; итоговая запись проверяется целиком
   app.patch<{ Params: IdParams }>('/api/profiles/:id', async (request, reply) => {
+    const email = userOf(request, auth);
+    if (email === null) {
+      return reply.code(401).send({ error: 'Вход не выполнен' });
+    }
+
     const id = schemas.id.safeParse(request.params.id);
     if (!id.success) {
       return reply.code(400).send({ error: 'Некорректный идентификатор профиля' });
@@ -181,7 +257,7 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
     if (existing === null) {
       return reply.code(404).send({ error: 'Профиль не найден' });
     }
-    if (existing.ownerEmail !== null && existing.ownerEmail !== userOf(request, auth)) {
+    if (existing.ownerEmail !== null && existing.ownerEmail !== email) {
       return reply.code(404).send({ error: 'Профиль не найден' });
     }
 
@@ -204,14 +280,20 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
       answers: full.data.answers,
       weights: full.data.weights,
       source: full.data.source,
-      // Профиль без входа первый вошедший «забирает» себе; свой остаётся своим.
-      ownerEmail: existing.ownerEmail ?? userOf(request, auth),
+      // Профиль, сохранённый до появления обязательного входа, забирает себе
+      // первый вошедший; свой остаётся своим.
+      ownerEmail: existing.ownerEmail ?? email,
     });
     return reply.send(updated);
   });
 
   // Удалить профиль
   app.delete<{ Params: IdParams }>('/api/profiles/:id', async (request, reply) => {
+    const email = userOf(request, auth);
+    if (email === null) {
+      return reply.code(401).send({ error: 'Вход не выполнен' });
+    }
+
     const id = schemas.id.safeParse(request.params.id);
     if (!id.success) {
       return reply.code(400).send({ error: 'Некорректный идентификатор профиля' });
@@ -221,7 +303,7 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
     if (existing === null) {
       return reply.code(404).send({ error: 'Профиль не найден' });
     }
-    if (existing.ownerEmail !== null && existing.ownerEmail !== userOf(request, auth)) {
+    if (existing.ownerEmail !== null && existing.ownerEmail !== email) {
       return reply.code(404).send({ error: 'Профиль не найден' });
     }
 

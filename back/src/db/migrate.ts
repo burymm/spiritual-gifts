@@ -1,12 +1,31 @@
+import { existsSync } from 'node:fs';
 import { readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Pool } from 'pg';
 
-/** back/migrations — и из src/db, и из dist/db путь одинаковый по глубине. */
-const MIGRATIONS_DIR = path.resolve(
-  fileURLToPath(new URL('../../migrations', import.meta.url)),
-);
+/**
+ * Каталог миграций зависит от того, как запущен код: из src/db и dist/db —
+ * ../../migrations, а на Vercel handler лежит в бандле back/src/server.mjs,
+ * поэтому перебираем кандидатов и берём первый существующий.
+ */
+function resolveMigrationsDir(): string {
+  const here = fileURLToPath(new URL('.', import.meta.url));
+  const candidates = [
+    path.resolve(here, '../../migrations'), // src/db и dist/db → back/migrations
+    path.resolve(here, '../migrations'), // бандл back/src → back/migrations
+    path.resolve(here, '../../back/migrations'),
+    path.resolve(process.cwd(), 'back/migrations'),
+    path.resolve(process.cwd(), 'migrations'),
+  ];
+  const found = candidates.find((dir) => existsSync(dir));
+  if (found === undefined) {
+    throw new Error(
+      `Каталог миграций не найден, искали: ${candidates.join(', ')}`,
+    );
+  }
+  return found;
+}
 
 const CREATE_TRACKER = `create table if not exists schema_migrations (
   name text primary key,
@@ -24,7 +43,7 @@ function message(error: unknown): string {
  */
 export async function runMigrations(
   pool: Pool,
-  dir: string = MIGRATIONS_DIR,
+  dir: string = resolveMigrationsDir(),
 ): Promise<string[]> {
   const client = await pool.connect();
   try {

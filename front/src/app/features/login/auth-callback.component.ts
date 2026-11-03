@@ -1,7 +1,7 @@
 import { Component, OnInit, inject } from '@angular/core';
 import { Router } from '@angular/router';
 
-import { AuthService } from '../../core/auth.service';
+import { AuthService, takeReturnUrl } from '../../core/auth.service';
 
 /** Достаёт токен из #token=, который бэк подкладывает при возврате от Google. */
 export function tokenFromHash(hash: string): string | null {
@@ -29,9 +29,15 @@ export class AuthCallbackComponent implements OnInit {
   private async finish(): Promise<void> {
     const token = tokenFromHash(window.location.hash);
     const ok = token !== null && (await this.auth.acceptToken(token));
-    await this.router.navigate(ok ? ['/instruction'] : ['/login'], {
+    if (ok) {
+      await this.router.navigateByUrl(takeReturnUrl() ?? '/instruction', {
+        replaceUrl: true,
+      });
+      return;
+    }
+    await this.router.navigate(['/login'], {
       replaceUrl: true,
-      queryParams: ok ? {} : { error: 'token' },
+      queryParams: { error: 'token' },
     });
   }
 }

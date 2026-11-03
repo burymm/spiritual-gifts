@@ -1,5 +1,5 @@
 import { Component, inject } from '@angular/core';
-import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 
 import { AuthService } from './core/auth.service';
 
@@ -12,8 +12,11 @@ import { AuthService } from './core/auth.service';
 export class AppComponent {
   title = 'Карта духовных даров';
   readonly auth = inject(AuthService);
+  private readonly router = inject(Router);
 
-  signOut(): void {
-    void this.auth.logout();
+  async signOut(): Promise<void> {
+    await this.auth.logout();
+    // Без сессии разделы закрыты — уходим на страницу входа.
+    await this.router.navigate(['/login'], { replaceUrl: true });
   }
 }

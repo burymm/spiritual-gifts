@@ -1,21 +1,49 @@
+import type { FastifyInstance, InjectOptions } from 'fastify';
 import { describe, expect, it } from 'vitest';
 
 import { buildApp } from '../src/app.js';
+import { signToken } from '../src/auth/session.js';
+import type { AuthConfig } from '../src/config.js';
 import { MemoryProfileRepository } from './memory-repo.js';
 
 const RULES = { qualityCount: 24, baseWeight: 50 };
 const VALID_WEIGHTS = Array.from({ length: 24 }, () => 50);
 
+/** Вход нужен всем маршрутам профилей — берём готовый токен без сети. */
+const TEST_AUTH: AuthConfig = {
+  mode: 'mock',
+  secret: 'секрет-для-тестов-api',
+  secretEphemeral: false,
+  frontOrigin: 'http://localhost:4200',
+  apiPublicOrigin: 'http://127.0.0.1:3000',
+  google: null,
+  tokenTtlSeconds: 3600,
+};
+
+const TEST_EMAIL = 'owner@example.com';
+const TEST_TOKEN = signToken(
+  { kind: 'session', email: TEST_EMAIL, exp: Math.floor(Date.now() / 1000) + 3600 },
+  TEST_AUTH.secret,
+);
+
 async function makeApp() {
   const repo = new MemoryProfileRepository();
-  const app = await buildApp({ repo, rules: RULES });
+  const app = await buildApp({ repo, rules: RULES, auth: TEST_AUTH });
   return { app, repo };
+}
+
+/** Запрос от вошедшего пользователя; headers запроса главнее токена. */
+function call(app: FastifyInstance, options: InjectOptions) {
+  return app.inject({
+    ...options,
+    headers: { authorization: `Bearer ${TEST_TOKEN}`, ...(options.headers ?? {}) },
+  });
 }
 
 describe('GET /api/health', () => {
   it('отвечает 200, когда база отвечает', async () => {
     const { app } = await makeApp();
-    const response = await app.inject({ method: 'GET', url: '/api/health' });
+    const response = await call(app, { method: 'GET', url: '/api/health' });
 
     expect(response.statusCode).toBe(200);
     expect(response.json()).toEqual({ status: 'ok', db: true });
@@ -25,7 +53,7 @@ describe('GET /api/health', () => {
   it('отвечает 503, когда база недоступна', async () => {
     const { app, repo } = await makeApp();
     repo.setHealthy(false);
-    const response = await app.inject({ method: 'GET', url: '/api/health' });
+    const response = await call(app, { method: 'GET', url: '/api/health' });
 
     expect(response.statusCode).toBe(503);
     expect(response.json()).toEqual({ status: 'degraded', db: false });
@@ -36,7 +64,7 @@ describe('GET /api/health', () => {
 describe('POST /api/profiles', () => {
   it('создаёт профиль и возвращает его с id', async () => {
     const { app } = await makeApp();
-    const response = await app.inject({
+    const response = await call(app, {
       method: 'POST',
       url: '/api/profiles',
       payload: {
@@ -62,7 +90,7 @@ describe('POST /api/profiles', () => {
 
   it('подставляет значения по умолчанию', async () => {
     const { app } = await makeApp();
-    const response = await app.inject({
+    const response = await call(app, {
       method: 'POST',
       url: '/api/profiles',
       payload: { weights: VALID_WEIGHTS },
@@ -78,7 +106,7 @@ describe('POST /api/profiles', () => {
 
   it('отклоняет суммы вне пула', async () => {
     const { app } = await makeApp();
-    const response = await app.inject({
+    const response = await call(app, {
       method: 'POST',
       url: '/api/profiles',
       payload: { weights: VALID_WEIGHTS.map((w, i) => (i === 0 ? w + 1 : w)) },
@@ -93,7 +121,7 @@ describe('POST /api/profiles', () => {
 
   it('отклоняет не 24 качества', async () => {
     const { app } = await makeApp();
-    const response = await app.inject({
+    const response = await call(app, {
       method: 'POST',
       url: '/api/profiles',
       payload: { weights: [50, 50, 50] },
@@ -106,7 +134,7 @@ describe('POST /api/profiles', () => {
 
   it('отклоняет ответы вне шкалы 1…5', async () => {
     const { app } = await makeApp();
-    const response = await app.inject({
+    const response = await call(app, {
       method: 'POST',
       url: '/api/profiles',
       payload: { answers: { '7': 9 }, weights: VALID_WEIGHTS },
@@ -120,13 +148,13 @@ describe('POST /api/profiles', () => {
 describe('GET /api/profiles/:id', () => {
   it('возвращает сохранённый профиль', async () => {
     const { app } = await makeApp();
-    const created = await app.inject({
+    const created = await call(app, {
       method: 'POST',
       url: '/api/profiles',
       payload: { weights: VALID_WEIGHTS },
     });
 
-    const response = await app.inject({
+    const response = await call(app, {
       method: 'GET',
       url: `/api/profiles/${created.json().id}`,
     });
@@ -138,7 +166,7 @@ describe('GET /api/profiles/:id', () => {
 
   it('отвечает 404 для неизвестного id', async () => {
     const { app } = await makeApp();
-    const response = await app.inject({
+    const response = await call(app, {
       method: 'GET',
       url: '/api/profiles/2b0f4a58-0e3c-4f5e-9f5a-1d8a3c9e7b21',
     });
@@ -149,7 +177,7 @@ describe('GET /api/profiles/:id', () => {
 
   it('отвечает 400 для мусора вместо id', async () => {
     const { app } = await makeApp();
-    const response = await app.inject({
+    const response = await call(app, {
       method: 'GET',
       url: '/api/profiles/not-a-uuid',
     });
@@ -162,7 +190,7 @@ describe('GET /api/profiles/:id', () => {
 describe('PATCH /api/profiles/:id', () => {
   it('обновляет веса и переносит остальные поля', async () => {
     const { app } = await makeApp();
-    const created = await app.inject({
+    const created = await call(app, {
       method: 'POST',
       url: '/api/profiles',
       payload: { answers: { '1': 3 }, weights: VALID_WEIGHTS },
@@ -174,7 +202,7 @@ describe('PATCH /api/profiles/:id', () => {
     // приводим к точной сумме 1200, как это делает движок фронта
     rounded[1] += 1200 - rounded.reduce((a, b) => a + b, 0);
 
-    const response = await app.inject({
+    const response = await call(app, {
       method: 'PATCH',
       url: `/api/profiles/${id}`,
       payload: { weights: rounded, source: 'calibrated' },
@@ -190,13 +218,13 @@ describe('PATCH /api/profiles/:id', () => {
 
   it('отклоняет обновление, ломающее инварианты', async () => {
     const { app } = await makeApp();
-    const created = await app.inject({
+    const created = await call(app, {
       method: 'POST',
       url: '/api/profiles',
       payload: { weights: VALID_WEIGHTS },
     });
 
-    const response = await app.inject({
+    const response = await call(app, {
       method: 'PATCH',
       url: `/api/profiles/${created.json().id}`,
       payload: { weights: VALID_WEIGHTS.slice(0, 23) },
@@ -208,7 +236,7 @@ describe('PATCH /api/profiles/:id', () => {
 
   it('отвечает 404 для неизвестного id', async () => {
     const { app } = await makeApp();
-    const response = await app.inject({
+    const response = await call(app, {
       method: 'PATCH',
       url: '/api/profiles/2b0f4a58-0e3c-4f5e-9f5a-1d8a3c9e7b21',
       payload: { title: 'x' },
@@ -222,24 +250,24 @@ describe('PATCH /api/profiles/:id', () => {
 describe('DELETE /api/profiles/:id', () => {
   it('удаляет профиль и больше его не отдаёт', async () => {
     const { app } = await makeApp();
-    const created = await app.inject({
+    const created = await call(app, {
       method: 'POST',
       url: '/api/profiles',
       payload: { weights: VALID_WEIGHTS },
     });
     const id = created.json().id;
 
-    const removed = await app.inject({ method: 'DELETE', url: `/api/profiles/${id}` });
+    const removed = await call(app, { method: 'DELETE', url: `/api/profiles/${id}` });
     expect(removed.statusCode).toBe(204);
 
-    const again = await app.inject({ method: 'GET', url: `/api/profiles/${id}` });
+    const again = await call(app, { method: 'GET', url: `/api/profiles/${id}` });
     expect(again.statusCode).toBe(404);
     await app.close();
   });
 
   it('отвечает 404, когда профиля уже нет', async () => {
     const { app } = await makeApp();
-    const response = await app.inject({
+    const response = await call(app, {
       method: 'DELETE',
       url: '/api/profiles/2b0f4a58-0e3c-4f5e-9f5a-1d8a3c9e7b21',
     });
@@ -250,14 +278,14 @@ describe('DELETE /api/profiles/:id', () => {
 
   it('принимает DELETE с content-type json и пустым телом', async () => {
     const { app } = await makeApp();
-    const created = await app.inject({
+    const created = await call(app, {
       method: 'POST',
       url: '/api/profiles',
       payload: { weights: VALID_WEIGHTS },
     });
     const id = created.json().id;
 
-    const response = await app.inject({
+    const response = await call(app, {
       method: 'DELETE',
       url: `/api/profiles/${id}`,
       headers: { 'content-type': 'application/json' },
@@ -269,10 +297,41 @@ describe('DELETE /api/profiles/:id', () => {
   });
 });
 
+describe('вход обязателен', () => {
+  it('без токена профили не создаются', async () => {
+    const { app } = await makeApp();
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/profiles',
+      payload: { weights: VALID_WEIGHTS },
+    });
+
+    expect(response.statusCode).toBe(401);
+    await app.close();
+  });
+
+  it('без токена профиль не читается', async () => {
+    const { app } = await makeApp();
+    const created = await call(app, {
+      method: 'POST',
+      url: '/api/profiles',
+      payload: { weights: VALID_WEIGHTS },
+    });
+
+    const response = await app.inject({
+      method: 'GET',
+      url: `/api/profiles/${created.json().id}`,
+    });
+
+    expect(response.statusCode).toBe(401);
+    await app.close();
+  });
+});
+
 describe('тела запросов', () => {
   it('отклоняет битый JSON', async () => {
     const { app } = await makeApp();
-    const response = await app.inject({
+    const response = await call(app, {
       method: 'POST',
       url: '/api/profiles',
       headers: { 'content-type': 'application/json' },
@@ -286,7 +345,7 @@ describe('тела запросов', () => {
 
   it('пропускает запрос без тела', async () => {
     const { app } = await makeApp();
-    const response = await app.inject({
+    const response = await call(app, {
       method: 'POST',
       url: '/api/profiles',
       headers: { 'content-type': 'application/json' },

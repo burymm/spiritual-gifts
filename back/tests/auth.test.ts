@@ -330,18 +330,21 @@ describe('владение профилем', () => {
     const anonymous = await app.inject({ method: 'GET', url: `/api/profiles/${id}` });
 
     expect(asOwner.statusCode).toBe(200);
-    expect(anonymous.statusCode).toBe(404);
+    expect(anonymous.statusCode).toBe(401);
     await app.close();
   });
 
   it('профиль без входа «забирает» первый вошедший', async () => {
-    const { app } = await makeApp();
-    const created = await app.inject({
-      method: 'POST',
-      url: '/api/profiles',
-      payload: { answers: { '1': 4 }, weights: VALID_WEIGHTS, source: 'survey' },
+    const { app, repo } = await makeApp();
+    // Такой профиль остался от версии без обязательного входа.
+    const created = await repo.create({
+      title: null,
+      answers: { 1: 4 },
+      weights: VALID_WEIGHTS,
+      source: 'survey',
+      ownerEmail: null,
     });
-    const id = created.json().id;
+    const id = created.id;
 
     const { token } = await signIn(app, 'newcomer@b.co');
     const claimed = await app.inject({
@@ -357,17 +360,19 @@ describe('владение профилем', () => {
     const mine = await app.inject({ method: 'GET', url: '/api/profiles/mine', headers: bearer(token) });
     expect(mine.json().id).toBe(id);
 
-    // Старая ссылка-ключ больше ничего не отдаёт
+    // Старая ссылка-ключ больше ничего не отдаёт без входа
     const byOldLink = await app.inject({ method: 'GET', url: `/api/profiles/${id}` });
-    expect(byOldLink.statusCode).toBe(404);
+    expect(byOldLink.statusCode).toBe(401);
     await app.close();
   });
 
-  it('анонимный PATCH не привязывает профиль к почте', async () => {
+  it('анонимный PATCH отклоняется', async () => {
     const { app } = await makeApp();
+    const owner = await signIn(app, 'owner@b.co');
     const created = await app.inject({
       method: 'POST',
       url: '/api/profiles',
+      headers: bearer(owner.token),
       payload: { weights: VALID_WEIGHTS },
     });
     const id = created.json().id;
@@ -378,22 +383,19 @@ describe('владение профилем', () => {
       payload: { title: 'без входа' },
     });
 
-    expect(patched.statusCode).toBe(200);
-    expect(patched.json().ownerEmail).toBeNull();
+    expect(patched.statusCode).toBe(401);
     await app.close();
   });
 
-  it('анонимные профили по-прежнему работают по ссылке', async () => {
+  it('анонимные профили больше не создаются', async () => {
     const { app } = await makeApp();
     const created = await app.inject({
       method: 'POST',
       url: '/api/profiles',
       payload: { weights: VALID_WEIGHTS },
     });
-    const id = created.json().id;
 
-    const read = await app.inject({ method: 'GET', url: `/api/profiles/${id}` });
-    expect(read.statusCode).toBe(200);
+    expect(created.statusCode).toBe(401);
     await app.close();
   });
 });

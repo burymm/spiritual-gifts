@@ -1,0 +1,24 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "services": {
+    "back": {
+      "root": "back",
+      "framework": "fastify",
+      "entrypoint": "src/server.ts",
+      "installCommand": "npm ci",
+      "buildCommand": "npm run build && npm run build:front",
+      "outputDirectory": ".",
+      "functions": {
+        "src/server.ts": {
+          "includeFiles": "public/**"
+        }
+      }
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": { "service": "back" }
+    }
+  ]
+}

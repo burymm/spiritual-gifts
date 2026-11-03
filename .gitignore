@@ -6,6 +6,9 @@ coverage/
 tmp/
 out-tsc/
 
+# Собранный фронт для раздачи из back/public (кладёт build:front)
+back/public/
+
 # Secrets
 .env
 !.env.example
@@ -15,3 +18,9 @@ out-tsc/
 npm-debug.log*
 .DS_Store
 Thumbs.db
+
+# Vercel: линковка локальных директорий с проектами (не содержит секретов)
+.vercel/
+
+.vercel
+.env*
