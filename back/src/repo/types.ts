@@ -11,6 +11,8 @@ export interface ProfileRepository {
   findById(id: string): Promise<Profile | null>;
   /** Последний профиль пользователя: для входившего — его актуальные результаты. */
   findLatestByOwner(ownerEmail: string): Promise<Profile | null>;
+  /** По одному последнему профилю на каждую почту — для админ-списка. */
+  listLatest(): Promise<Profile[]>;
   update(id: string, patch: NewProfileInput): Promise<Profile | null>;
   remove(id: string): Promise<boolean>;
   ping(): Promise<boolean>;

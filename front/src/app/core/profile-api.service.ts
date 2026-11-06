@@ -22,6 +22,14 @@ export interface StoredProfile extends ProfilePayload {
   readonly id: string;
 }
 
+/** Профиль из админ-списка: почта и служебные даты нужны для сводки. */
+export interface AdminProfile extends StoredProfile {
+  readonly title: string | null;
+  readonly ownerEmail: string;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+}
+
 /** Thin wrapper over /api/profiles so callers never see HttpClient types. */
 @Injectable({ providedIn: 'root' })
 export class ProfileApi {
@@ -49,6 +57,13 @@ export class ProfileApi {
   update(id: string, payload: ProfilePayload): Promise<StoredProfile> {
     return firstValueFrom(
       this.http.patch<StoredProfile>(`${API_BASE_URL}/profiles/${id}`, payload),
+    );
+  }
+
+  /** Все пользователи с последним профилем; сервер пускает только админа. */
+  adminProfiles(): Promise<AdminProfile[]> {
+    return firstValueFrom(
+      this.http.get<AdminProfile[]>(`${API_BASE_URL}/admin/profiles`),
     );
   }
 }

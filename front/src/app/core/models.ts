@@ -63,9 +63,14 @@ export interface GiftScore {
   readonly giftName: string;
   /** Euclidean distance between the normalized weight vector and the profile. */
   readonly distance: number;
-  /** `(1 − distance) × 100`, computed literally. May be negative. */
-  readonly score: number;
-  /** `score` clamped for display: negative values are shown as 0. */
+  /** Profile match `(1 − distance) × 100`, computed literally. May be negative. */
+  readonly match: number;
+  /**
+   * Weighted mean of the gift's quality indexes on the 1–5 scale, in percent:
+   * `mean / 5 × 100`. This is the primary result (4 из 5 = 80%).
+   */
+  readonly expression: number;
+  /** Percent shown in the UI: `expression` clamped to 0…100. */
   readonly display: number;
 }
 

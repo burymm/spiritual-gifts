@@ -17,6 +17,7 @@ const MOCK_AUTH: AuthConfig = {
   frontOrigin: 'http://localhost:4200',
   apiPublicOrigin: 'http://127.0.0.1:3000',
   google: null,
+  adminEmail: 'admin@example.com',
   tokenTtlSeconds: 3600,
 };
 
@@ -40,7 +41,7 @@ async function signIn(app: Awaited<ReturnType<typeof makeApp>>['app'], email: st
     payload: { email },
   });
   expect(response.statusCode).toBe(201);
-  return response.json() as { token: string; email: string };
+  return response.json() as { token: string; email: string; admin: boolean };
 }
 
 function bearer(token: string) {
@@ -111,6 +112,19 @@ describe('конфигурация входа', () => {
     expect(auth.google?.clientId).toBe('id');
   });
 
+  it('назначает администратора по умолчанию и разрешает переопределить', () => {
+    expect(
+      loadAuthConfig({}, 'http://127.0.0.1:3000', 'http://localhost:4200').adminEmail,
+    ).toBe('burymm@gmail.com');
+    expect(
+      loadAuthConfig(
+        { ADMIN_EMAIL: ' Boss@Example.com ' },
+        'http://127.0.0.1:3000',
+        'http://localhost:4200',
+      ).adminEmail,
+    ).toBe('boss@example.com');
+  });
+
   it('падает с понятной ошибкой при AUTH_MODE=google без ключей', () => {
     expect(() =>
       loadAuthConfig({ AUTH_MODE: 'google' }, 'http://127.0.0.1:3000', 'http://localhost:4200'),
@@ -137,7 +151,17 @@ describe('эмуляция входа', () => {
     expect(email).toBe('reader@example.com');
     const me = await app.inject({ method: 'GET', url: '/api/auth/me', headers: bearer(token) });
     expect(me.statusCode).toBe(200);
-    expect(me.json()).toEqual({ email: 'reader@example.com' });
+    expect(me.json()).toEqual({ email: 'reader@example.com', admin: false });
+    await app.close();
+  });
+
+  it('помечает администратора по почте', async () => {
+    const { app } = await makeApp();
+    const { token, admin } = await signIn(app, 'admin@example.com');
+
+    expect(admin).toBe(true);
+    const me = await app.inject({ method: 'GET', url: '/api/auth/me', headers: bearer(token) });
+    expect(me.json()).toEqual({ email: 'admin@example.com', admin: true });
     await app.close();
   });
 

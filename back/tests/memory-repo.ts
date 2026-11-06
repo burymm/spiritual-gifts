@@ -33,6 +33,20 @@ export class MemoryProfileRepository implements ProfileRepository {
     return owned[0] ?? null;
   }
 
+  async listLatest(): Promise<Profile[]> {
+    const latest = new Map<string, Profile>();
+    for (const profile of this.rows.values()) {
+      if (profile.ownerEmail === null) continue;
+      const current = latest.get(profile.ownerEmail);
+      if (current === undefined || profile.updatedAt > current.updatedAt) {
+        latest.set(profile.ownerEmail, profile);
+      }
+    }
+    return [...latest.values()].sort((a, b) =>
+      b.updatedAt.localeCompare(a.updatedAt),
+    );
+  }
+
   async update(id: string, patch: NewProfileInput): Promise<Profile | null> {
     const existing = this.rows.get(id);
     if (!existing) return null;

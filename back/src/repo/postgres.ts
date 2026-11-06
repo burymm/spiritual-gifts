@@ -76,6 +76,19 @@ export class PostgresProfileRepository implements ProfileRepository {
     return result.rows[0] ? toProfile(result.rows[0]) : null;
   }
 
+  async listLatest(): Promise<Profile[]> {
+    const result = await this.pool.query<Row>(
+      `select ${SELECT_COLUMNS} from (
+         select distinct on (owner_email) ${SELECT_COLUMNS}
+         from profiles
+         where owner_email is not null
+         order by owner_email, updated_at desc
+       ) as latest
+       order by updated_at desc`,
+    );
+    return result.rows.map(toProfile);
+  }
+
   async update(id: string, patch: NewProfileInput): Promise<Profile | null> {
     const sets: string[] = ['updated_at = now()'];
     const params: unknown[] = [];

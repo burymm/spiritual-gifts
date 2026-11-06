@@ -12,6 +12,9 @@ export interface Config {
 
 export type AuthMode = 'google' | 'mock';
 
+/** Почта администратора по умолчанию; переопределяется ADMIN_EMAIL. */
+export const DEFAULT_ADMIN_EMAIL = 'burymm@gmail.com';
+
 /**
  * Настройки входа. `google` — настоящий OAuth через Google; `mock` — эмуляция
  * входа для локальной сборки, когда ключей Google нет: пользователь просто
@@ -28,6 +31,8 @@ export interface AuthConfig {
   /** Публичный адрес самого API — из него собирается redirect_uri Google. */
   readonly apiPublicOrigin: string;
   readonly google: { readonly clientId: string; readonly clientSecret: string } | null;
+  /** Единственная почта с доступом к списку всех результатов. */
+  readonly adminEmail: string;
   readonly tokenTtlSeconds: number;
 }
 
@@ -137,6 +142,7 @@ export function loadAuthConfig(
   }
 
   const secret = (env.SESSION_SECRET ?? '').trim();
+  const adminEmail = (env.ADMIN_EMAIL ?? '').trim() || DEFAULT_ADMIN_EMAIL;
   return {
     mode,
     secret: secret !== '' ? secret : randomBytes(32).toString('hex'),
@@ -144,6 +150,7 @@ export function loadAuthConfig(
     frontOrigin: origin(frontOrigin),
     apiPublicOrigin: origin(apiPublicOrigin),
     google,
+    adminEmail: normalizeEmail(adminEmail),
     tokenTtlSeconds: int(env, 'SESSION_TTL_HOURS', 720) * 3600,
   };
 }

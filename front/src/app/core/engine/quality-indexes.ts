@@ -1,4 +1,12 @@
-import type { Answers, Quality, QualityIndex, Question } from '../models';
+import type {
+  Answers,
+  GiftProfile,
+  Quality,
+  QualityIndex,
+  Question,
+  WeightVector,
+} from '../models';
+import { BASE_WEIGHT } from '../config';
 
 export interface SurveyProgress {
   readonly answered: number;
@@ -73,4 +81,58 @@ export function qualityIndexes(
 /** Convenience for tests and the UI: just the numeric values. */
 export function indexValues(indexes: readonly QualityIndex[]): number[] {
   return indexes.map((i) => i.value ?? 0);
+}
+
+/**
+ * How strongly a gift is expressed: its qualities' indexes (1–5) weighted by
+ * the gift profile coefficients, then shown as a percentage (4 из 5 = 80%).
+ *
+ * Missing indexes are skipped; a gift whose qualities are all missing gets 0.
+ */
+export function giftExpression(
+  gift: GiftProfile,
+  indexes: readonly QualityIndex[],
+): number {
+  const byQuality = new Map(indexes.map((i) => [i.qualityId, i.value]));
+  let weighted = 0;
+  let total = 0;
+
+  for (const [key, coefficient] of Object.entries(gift.weights)) {
+    const value = byQuality.get(Number(key));
+    if (value == null) continue;
+    weighted += coefficient * value;
+    total += coefficient;
+  }
+
+  return total > 0 ? (weighted / total / 5) * 100 : 0;
+}
+
+/**
+ * Pseudo-indexes for a manually calibrated weight vector.
+ *
+ * The diagram stores relative weights, not answers. The mapping keeps the
+ * neutral points aligned: BASE_WEIGHT (uniform) → 3 из 5, minimum 1 → 1,
+ * maximum → 5. Used only when there are no survey indexes (calibrated and
+ * aggregated profiles); the survey path always uses real indexes.
+ */
+export function pseudoIndexes(
+  weights: WeightVector,
+  maxWeight: number,
+): QualityIndex[] {
+  const span = maxWeight - BASE_WEIGHT;
+
+  return weights.map((weight, index) => {
+    const value =
+      weight <= BASE_WEIGHT
+        ? 1 + ((weight - 1) / (BASE_WEIGHT - 1)) * 2
+        : span > 0
+          ? 3 + ((weight - BASE_WEIGHT) / span) * 2
+          : 5;
+
+    return {
+      qualityId: index + 1,
+      value: Math.min(5, Math.max(1, value)),
+      answered: 0,
+    };
+  });
 }

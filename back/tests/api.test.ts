@@ -17,12 +17,23 @@ const TEST_AUTH: AuthConfig = {
   frontOrigin: 'http://localhost:4200',
   apiPublicOrigin: 'http://127.0.0.1:3000',
   google: null,
+  adminEmail: 'admin@example.com',
   tokenTtlSeconds: 3600,
 };
 
 const TEST_EMAIL = 'owner@example.com';
 const TEST_TOKEN = signToken(
   { kind: 'session', email: TEST_EMAIL, exp: Math.floor(Date.now() / 1000) + 3600 },
+  TEST_AUTH.secret,
+);
+
+const ADMIN_TOKEN = signToken(
+  { kind: 'session', email: TEST_AUTH.adminEmail, exp: Math.floor(Date.now() / 1000) + 3600 },
+  TEST_AUTH.secret,
+);
+
+const STRANGER_TOKEN = signToken(
+  { kind: 'session', email: 'stranger@example.com', exp: Math.floor(Date.now() / 1000) + 3600 },
   TEST_AUTH.secret,
 );
 
@@ -293,6 +304,63 @@ describe('DELETE /api/profiles/:id', () => {
     });
 
     expect(response.statusCode).toBe(204);
+    await app.close();
+  });
+});
+
+describe('GET /api/admin/profiles', () => {
+  it('отдаёт администратору по одному последнему профилю на почту', async () => {
+    const { app, repo } = await makeApp();
+    await call(app, {
+      method: 'POST',
+      url: '/api/profiles',
+      payload: { answers: { '1': 4 }, weights: VALID_WEIGHTS },
+    });
+    // Второй профиль той же почты в список не дублируется.
+    await call(app, {
+      method: 'POST',
+      url: '/api/profiles',
+      payload: { answers: { '1': 5 }, weights: VALID_WEIGHTS },
+    });
+    await app.inject({
+      method: 'POST',
+      url: '/api/profiles',
+      headers: { authorization: `Bearer ${STRANGER_TOKEN}` },
+      payload: { weights: VALID_WEIGHTS },
+    });
+    // Профиль без владельца (наследие версии без входа) в админ-список не входит.
+    await repo.create({
+      title: null,
+      answers: {},
+      weights: VALID_WEIGHTS,
+      source: 'uniform',
+      ownerEmail: null,
+    });
+
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/admin/profiles',
+      headers: { authorization: `Bearer ${ADMIN_TOKEN}` },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.headers['cache-control']).toBe('no-store');
+    const profiles = response.json();
+    expect(profiles).toHaveLength(2);
+    expect(profiles.map((p: { ownerEmail: string }) => p.ownerEmail)).toEqual(
+      expect.arrayContaining([TEST_EMAIL, 'stranger@example.com']),
+    );
+    expect(profiles[0].answers).toBeDefined();
+    await app.close();
+  });
+
+  it('не пускает обычного пользователя и анонима', async () => {
+    const { app } = await makeApp();
+    const asOwner = await call(app, { method: 'GET', url: '/api/admin/profiles' });
+    const anonymous = await app.inject({ method: 'GET', url: '/api/admin/profiles' });
+
+    expect(asOwner.statusCode).toBe(403);
+    expect(anonymous.statusCode).toBe(401);
     await app.close();
   });
 });

@@ -1,0 +1,119 @@
+<section class="page">
+  <header class="page-head">
+    <div>
+      <p class="eyebrow">Админка</p>
+      <h1>Пользователи и результаты</h1>
+      <p class="lead">
+        Последний сохранённый профиль каждого пользователя и его результаты.
+        Доступ есть только у администратора; данные не кэшируются.
+      </p>
+    </div>
+    <button
+      class="btn btn-ghost"
+      type="button"
+      [disabled]="loading()"
+      (click)="load()"
+    >
+      Обновить
+    </button>
+  </header>
+
+  @if (loading()) {
+    <p class="state">Загружаем профили…</p>
+  } @else if (error() !== null) {
+    <div class="state state-error">
+      <p>{{ error() }}</p>
+      <button class="btn btn-ghost" type="button" (click)="load()">
+        Повторить
+      </button>
+    </div>
+  } @else {
+    <div class="toolbar">
+      <input
+        class="search"
+        type="search"
+        placeholder="Поиск по почте или названию"
+        aria-label="Поиск по почте или названию профиля"
+        [value]="query()"
+        (input)="setQuery($event)"
+      />
+      <label class="filter">
+        <input
+          type="checkbox"
+          [checked]="onlyCompleted()"
+          (change)="setOnlyCompleted($event)"
+        />
+        Только завершённые
+      </label>
+      <span class="summary">
+        Всего: {{ rows().length }} · анкета завершена: {{ completed() }}
+      </span>
+    </div>
+
+    @if (rows().length === 0) {
+      <p class="state">Пока никто не сохранил профиль.</p>
+    } @else if (filtered().length === 0) {
+      <p class="state">По этому запросу никого нет.</p>
+    } @else {
+      <div class="user-list">
+        @for (row of filtered(); track row.profile.id) {
+          <article class="user-card">
+            <header class="user-head">
+              <div class="user-id">
+                <h2>{{ row.profile.ownerEmail }}</h2>
+                <p class="user-meta">
+                  {{ row.profile.updatedAt | date: 'dd.MM.yyyy, HH:mm' }} ·
+                  отвечено {{ row.answered }} из {{ totalQuestions }}
+                  @if (row.profile.source !== 'survey') {
+                    · результат по весам
+                  }
+                  @if (row.profile.title !== null) {
+                    · {{ row.profile.title }}
+                  }
+                </p>
+              </div>
+              <span class="badge" [class.is-complete]="row.complete">
+                {{ row.complete ? 'Анкета завершена' : 'Анкета не завершена' }}
+              </span>
+            </header>
+
+            <div class="top-grid">
+              @for (item of top(row); track item.score.giftId) {
+                <div class="top-item">
+                  <span class="top-rank">{{ item.rank }}</span>
+                  <span class="top-name">{{ item.score.giftName }}</span>
+                  <span class="top-percent">{{ percent(item) }}%</span>
+                </div>
+              }
+            </div>
+
+            <details class="all">
+              <summary>Все 22 дара</summary>
+              <ol class="all-list">
+                @for (item of row.result.interpretations; track item.score.giftId) {
+                  <li class="gift">
+                    <span class="gift-rank">{{ item.rank }}</span>
+                    <span class="gift-name">{{ item.score.giftName }}</span>
+                    <span class="gift-bar">
+                      <span
+                        class="gift-fill"
+                        [class.strong]="item.strength === 'strong'"
+                        [style.width.%]="width(item.score.display)"
+                      ></span>
+                    </span>
+                    <span class="gift-value">{{ percent(item) }}%</span>
+                  </li>
+                }
+              </ol>
+            </details>
+          </article>
+        }
+      </div>
+    }
+
+    <p class="footnote">
+      Проценты считаются тем же движком, что и в разделе «Результат».
+      Незавершённые анкеты показывают профиль по сохранённым весам.
+    </p>
+  }
+</section>

@@ -8,6 +8,7 @@ import type {
 import type { Dataset } from '../dataset';
 import { STRONG_THRESHOLD, TOP_N, WEAK_THRESHOLD } from '../config';
 import { isSurveyComplete, qualityIndexes } from './quality-indexes';
+import { signGiftExpressions } from './sign-gifts';
 import {
   largestRemainder,
   poolFor,
@@ -22,6 +23,7 @@ function buildResult(
   dataset: Dataset,
   source: AssessmentResult['source'],
   indexes: readonly QualityIndex[] | null,
+  signExpressions: ReadonlyMap<number, number> | null = null,
 ): AssessmentResult {
   const pool = poolFor(dataset.qualities.length);
   const scores = scoreGifts(
@@ -29,6 +31,8 @@ function buildResult(
     pool,
     dataset.qualities,
     dataset.gifts,
+    indexes,
+    signExpressions,
   );
   return {
     weights,
@@ -65,7 +69,13 @@ export function assess(answers: Answers, dataset: Dataset): AssessmentResult {
   const indexes = qualityIndexes(answers, dataset.qualities);
   const values = indexes.map((i) => i.value ?? 1);
   const weights = proportionalWeights(values, pool);
-  return buildResult(weights, dataset, 'survey', indexes);
+  return buildResult(
+    weights,
+    dataset,
+    'survey',
+    indexes,
+    signGiftExpressions(answers),
+  );
 }
 
 /** Assess an integer weight vector from the calibration diagram. */
@@ -73,12 +83,14 @@ export function assessWeights(
   weights: WeightVector,
   dataset: Dataset,
   source: AssessmentResult['source'] = 'calibrated',
+  indexes: readonly QualityIndex[] | null = null,
+  signExpressions: ReadonlyMap<number, number> | null = null,
 ): AssessmentResult {
   const errors = validateWeights(weights, dataset.qualities.length);
   if (errors.length > 0) {
     throw new Error(`Invalid weight vector: ${errors.join(' ')}`);
   }
-  return buildResult([...weights], dataset, source, null);
+  return buildResult([...weights], dataset, source, indexes, signExpressions);
 }
 
 /**

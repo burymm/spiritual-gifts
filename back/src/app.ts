@@ -6,8 +6,8 @@ import cors from '@fastify/cors';
 import fastifyStatic from '@fastify/static';
 import Fastify, { type FastifyError, type FastifyInstance } from 'fastify';
 
-import { registerAuthRoutes, userOf } from './auth/routes.js';
-import type { AuthConfig } from './config.js';
+import { isAdminEmail, registerAuthRoutes, userOf } from './auth/routes.js';
+import { DEFAULT_ADMIN_EMAIL, type AuthConfig } from './config.js';
 import {
   createSchemas,
   issueMessages,
@@ -59,6 +59,7 @@ function fallbackAuth(): AuthConfig {
     frontOrigin: 'http://localhost:4200',
     apiPublicOrigin: 'http://127.0.0.1:3000',
     google: null,
+    adminEmail: DEFAULT_ADMIN_EMAIL,
     tokenTtlSeconds: 720 * 3600,
   };
 }
@@ -171,6 +172,22 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
   });
 
   registerAuthRoutes(app, auth);
+
+  // Все последние профили — только администратору. Ответы отдаём как есть:
+  // результат считает тот же движок фронта, поэтому дублировать его на бэке
+  // не нужно. no-store — это персональные данные.
+  app.get('/api/admin/profiles', async (request, reply) => {
+    const email = userOf(request, auth);
+    if (email === null) {
+      return reply.code(401).send({ error: 'Вход не выполнен' });
+    }
+    if (!isAdminEmail(email, auth)) {
+      return reply.code(403).send({ error: 'Доступ только для администратора' });
+    }
+
+    reply.header('cache-control', 'no-store');
+    return reply.send(await repo.listLatest());
+  });
 
   // Создать профиль: { title?, answers?, weights, source? }
   app.post('/api/profiles', async (request, reply) => {

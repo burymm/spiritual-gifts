@@ -5,8 +5,11 @@ import { DEFAULT_DATASET } from '../core/dataset';
 import {
   assess,
   assessWeights,
+  isSurveyComplete,
   poolFor,
+  qualityIndexes,
   setWeight,
+  signGiftExpressions,
   surveyProgress,
   uniformWeights,
 } from '../core/engine';
@@ -49,9 +52,28 @@ export class AssessmentStore {
     surveyProgress(this._answers(), this.dataset.questions),
   );
 
-  readonly result = computed<AssessmentResult>(() =>
-    assessWeights(this._weights(), this.dataset, this._source()),
-  );
+  readonly result = computed<AssessmentResult>(() => {
+    // Expression comes from the real answers, not from a lossy conversion of
+    // the diagram weights. Calibrated and aggregated profiles have no answers
+    // and fall back to pseudo-indexes inside the engine.
+    const complete =
+      this._source() === 'survey' &&
+      isSurveyComplete(this._answers(), this.dataset.questions);
+    const indexes = complete
+      ? qualityIndexes(this._answers(), this.qualities)
+      : null;
+    const signExpressions = complete
+      ? signGiftExpressions(this._answers())
+      : null;
+
+    return assessWeights(
+      this._weights(),
+      this.dataset,
+      this._source(),
+      indexes,
+      signExpressions,
+    );
+  });
 
   /** Share of the pool for a quality position, in percent. */
   shareOf(index: number): number {

@@ -75,6 +75,18 @@ describe('assessment store', () => {
     expect(store.weights().reduce((a, b) => a + b, 0)).toBe(store.pool);
   });
 
+  it('uses survey indexes for expression, not the diagram weights', () => {
+    const store = new AssessmentStore();
+    for (const question of store.dataset.questions) {
+      store.setAnswer(question.id, 4);
+    }
+
+    expect(store.source()).toBe('survey');
+    for (const score of store.result().scores) {
+      expect(score.display).toBeCloseTo(80, 10);
+    }
+  });
+
   it('keeps manual calibration when an answer is edited later', () => {
     const store = new AssessmentStore();
     completeSurvey(store);

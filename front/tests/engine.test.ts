@@ -4,7 +4,7 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import type { AnswerValue } from '../src/app/core/models';
+import type { AnswerValue, GiftScore } from '../src/app/core/models';
 import { DEFAULT_DATASET, createDataset } from '../src/app/core/dataset';
 import { QUESTIONS } from '../src/app/core/data/questions.data';
 import { QUALITIES } from '../src/app/core/data/qualities.data';
@@ -50,10 +50,7 @@ function documentedProfile(): number[] {
   return w;
 }
 
-function scoreOf(
-  scores: readonly { giftName: string; distance: number; display: number }[],
-  name: string,
-) {
+function scoreOf(scores: readonly GiftScore[], name: string) {
   const found = scores.find((s) => s.giftName === name);
   if (!found) throw new Error(`gift not found: ${name}`);
   return found;
@@ -103,7 +100,15 @@ describe('dataset integrity', () => {
     expect(core.questions.some((q) => q.isCandidate)).toBe(false);
     const assigned = core.qualities.flatMap((q) => q.questionIds);
     expect(assigned.every((id) => id <= 200)).toBe(true);
-    expect(new Set(assigned).size).toBe(200);
+    // 200 original questions minus the 40-question sign block.
+    expect(new Set(assigned).size).toBe(160);
+  });
+
+  it('keeps the sign block in the survey but out of quality indexes', () => {
+    const assigned = DATASET.qualities.flatMap((q) => q.questionIds);
+    expect(assigned).toHaveLength(174);
+    expect(assigned.some((id) => id >= 161 && id <= 200)).toBe(false);
+    expect(DATASET.questions).toHaveLength(214);
   });
 });
 
@@ -219,7 +224,35 @@ describe('quality indexes and survey completeness', () => {
 });
 
 describe('gift scoring', () => {
-  it('reproduces the documented example (Организатор 83,63 / Руководитель 33,41)', () => {
+  it('shows expression from the survey answers (4 из 5 = 80%)', () => {
+    const result = assess(allAnswers(4), DATASET);
+
+    for (const score of result.scores) {
+      expect(score.expression).toBeCloseTo(80, 10);
+      expect(score.display).toBeCloseTo(80, 10);
+    }
+
+    // Equal expression keeps a neutral order: ties fall back to the gift id.
+    expect(result.scores[0].giftId).toBe(1);
+  });
+
+  it('scores sign gifts directly from questions 161–200', () => {
+    const answers = allAnswers(4);
+    for (let id = 161; id <= 200; id++) answers[id] = 1;
+
+    const result = assess(answers, DATASET);
+
+    for (const id of [19, 20, 21, 22]) {
+      const gift = result.scores.find((score) => score.giftId === id);
+      if (!gift) throw new Error(`gift ${id} is missing`);
+      expect(gift.display, `sign gift ${id}`).toBeCloseTo(20, 10);
+    }
+
+    // Behavioural gifts still use the quality indexes (all answers are 4).
+    expect(scoreOf(result.scores, 'Учитель').display).toBeCloseTo(80, 10);
+  });
+
+  it('keeps the profile match as a secondary diagnostic', () => {
     const weights = documentedProfile();
     expect(weights.reduce((a, b) => a + b, 0)).toBe(1200);
 
@@ -228,47 +261,50 @@ describe('gift scoring', () => {
     const leader = scoreOf(result.scores, 'Руководитель');
 
     expect(organizer.distance).toBeCloseTo(0.1637, 4);
-    expect(organizer.display).toBeCloseTo(83.63, 2);
+    expect(organizer.match).toBeCloseTo(83.63, 2);
     expect(leader.distance).toBeCloseTo(0.6659, 4);
-    expect(leader.display).toBeCloseTo(33.41, 1);
+    expect(leader.match).toBeCloseTo(33.41, 1);
+
+    expect(organizer.display).toBeCloseTo(65.6, 1);
     expect(result.scores[0].giftName).toBe('Организатор / Администратор');
   });
 
-  it('gives Чудотворение 58,37% for the uniform start', () => {
+  it('gives every gift 60% for the uniform start', () => {
     const result = assessWeights(uniformWeights(N), DATASET);
-    expect(result.scores[0].giftName).toBe('Чудотворение');
-    expect(result.scores[0].display).toBeCloseTo(58.37, 1);
+    for (const score of result.scores) {
+      expect(score.display).toBeCloseTo(60, 10);
+    }
+    expect(result.scores[0].giftId).toBe(1);
   });
 
-  it('never displays a negative score', () => {
+  it('keeps the displayed expression between 0 and 100', () => {
     const weights = Array.from({ length: N }, () => 1);
     weights[9] = 1176; // quality 10 — Финансовая дисциплина
     weights[0] = 2;
     expect(weights.reduce((a, b) => a + b, 0)).toBe(1200);
 
     const result = assessWeights(weights, DATASET);
-    expect(result.scores.some((s) => s.score < 0)).toBe(true);
     for (const s of result.scores) {
-      expect(s.display).toBeGreaterThanOrEqual(0);
-      expect(s.display).toBe(Math.max(0, s.score));
+      expect(s.expression).toBeGreaterThanOrEqual(0);
+      expect(s.display).toBeLessThanOrEqual(100);
+      expect(s.display).toBe(Math.max(0, Math.min(100, s.expression)));
     }
   });
 
-  it('marks top 3 and applies the 75 / 50 thresholds to the display value', () => {
-    const strong = assessWeights(documentedProfile(), DATASET);
+  it('marks top 3 and applies the 75 / 50 thresholds to expression', () => {
+    const strong = assess(allAnswers(4), DATASET);
     expect(strong.interpretations[0].rank).toBe(1);
     expect(strong.interpretations[0].strength).toBe('strong');
     expect(strong.interpretations.filter((i) => i.top)).toHaveLength(3);
     expect(strong.interpretations[3].top).toBe(false);
 
     const uniform = assessWeights(uniformWeights(N), DATASET);
-    expect(uniform.interpretations[0].score.display).toBeCloseTo(58.37, 1);
+    expect(uniform.interpretations[0].score.display).toBeCloseTo(60, 10);
     expect(uniform.interpretations[0].strength).toBe('possible');
 
-    const weak = uniform.interpretations.find(
-      (i) => i.score.display < 50,
-    );
-    expect(weak?.strength).toBe('weak');
+    const weak = assess(allAnswers(2), DATASET);
+    expect(weak.interpretations[0].score.display).toBeCloseTo(40, 10);
+    expect(weak.interpretations[0].strength).toBe('weak');
   });
 });
 

@@ -57,11 +57,14 @@ export class AuthService {
 
   private readonly _token = signal<string | null>(readStoredToken());
   private readonly _email = signal<string | null>(null);
+  private readonly _admin = signal(false);
   private readonly _mode = signal<AuthMode | null>(null);
   private readonly _ready = signal(false);
 
   readonly token = this._token.asReadonly();
   readonly email = this._email.asReadonly();
+  /** Флаг ставит сервер: по одной почте из ADMIN_EMAIL. */
+  readonly admin = this._admin.asReadonly();
   readonly mode = this._mode.asReadonly();
   readonly ready = this._ready.asReadonly();
   readonly signedIn = computed(() => this._email() !== null);
@@ -103,10 +106,14 @@ export class AuthService {
   /** Эмуляция входа для локальной сборки: сервер выдаёт тот же токен. */
   async loginMock(email: string): Promise<void> {
     const response = await firstValueFrom(
-      this.http.post<{ token: string; email: string }>(`${API_BASE_URL}/auth/mock`, { email }),
+      this.http.post<{ token: string; email: string; admin?: boolean }>(
+        `${API_BASE_URL}/auth/mock`,
+        { email },
+      ),
     );
     this.storeToken(response.token);
     this._email.set(response.email);
+    this._admin.set(response.admin === true);
   }
 
   async logout(): Promise<void> {
@@ -145,15 +152,17 @@ export class AuthService {
     }
     this._token.set(null);
     this._email.set(null);
+    this._admin.set(false);
   }
 
   /** Узнаём почту по токену; 'ok' либо HTTP-статус неудачи (0 — нет сети). */
   private async refreshUser(): Promise<'ok' | number> {
     try {
       const me = await firstValueFrom(
-        this.http.get<{ email: string }>(`${API_BASE_URL}/auth/me`),
+        this.http.get<{ email: string; admin?: boolean }>(`${API_BASE_URL}/auth/me`),
       );
       this._email.set(me.email);
+      this._admin.set(me.admin === true);
       return 'ok';
     } catch (error) {
       return statusOf(error);

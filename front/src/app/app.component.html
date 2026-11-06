@@ -11,6 +11,9 @@
         <a routerLink="/survey" routerLinkActive="is-active">Анкета</a>
         <a routerLink="/diagram" routerLinkActive="is-active">Диаграмма</a>
         <a routerLink="/result" routerLinkActive="is-active">Результат</a>
+        @if (auth.admin()) {
+          <a routerLink="/admin" routerLinkActive="is-active">Админка</a>
+        }
       </nav>
     }
 

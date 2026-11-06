@@ -18,6 +18,20 @@ export const INCLUDE_CANDIDATE_QUESTIONS = true;
 /** Uniform target weight per quality; the pool is BASE_WEIGHT × quality count. */
 export const BASE_WEIGHT = 50;
 
+/**
+ * Do not use the sign block (questions 161–200) for quality indexes.
+ *
+ * The 40 questions about healing, miracles, tongues and interpretation are
+ * spread across 21 qualities. A person without those gifts answers «1» and
+ * thereby lowers unrelated behavioural qualities (решение 06.11.2026).
+ * The questions stay in the survey and still count for completeness.
+ */
+export const EXCLUDE_SIGN_BLOCK_FROM_QUALITIES = true;
+
+/** Inclusive range of the sign block in the questionnaire. */
+export const SIGN_BLOCK_FIRST = 161;
+export const SIGN_BLOCK_LAST = 200;
+
 /** Displayed score ≥ this is marked as a strong expression (решение 26.10.2026). */
 export const STRONG_THRESHOLD = 75;
 

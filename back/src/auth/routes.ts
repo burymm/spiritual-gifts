@@ -10,6 +10,11 @@ import { signToken, verifySession, verifyState } from './session.js';
  * (фронт на :4200, API на :3000) без кук и SameSite-головоломок.
  */
 
+/** Администратор — только одна почта из конфигурации (ADMIN_EMAIL). */
+export function isAdminEmail(email: string, auth: AuthConfig): boolean {
+  return normalizeEmail(email) === auth.adminEmail;
+}
+
 /** Почта из заголовка Authorization: Bearer <token>, либо null. */
 export function userOf(request: FastifyRequest, auth: AuthConfig): string | null {
   const header = request.headers.authorization;
@@ -121,13 +126,13 @@ export function registerAuthRoutes(app: FastifyInstance, auth: AuthConfig): void
       { kind: 'session', email, exp: Math.floor(Date.now() / 1000) + auth.tokenTtlSeconds },
       auth.secret,
     );
-    return reply.code(201).send({ token, email });
+    return reply.code(201).send({ token, email, admin: isAdminEmail(email, auth) });
   });
 
   app.get('/api/auth/me', async (request, reply) => {
     const email = userOf(request, auth);
     if (email === null) return reply.code(401).send({ error: 'Вход не выполнен' });
-    return reply.send({ email });
+    return reply.send({ email, admin: isAdminEmail(email, auth) });
   });
 
   // Токен хранится на клиенте, поэтому выход — просто его выбросить;

@@ -3,9 +3,12 @@ import type {
   GiftProfile,
   GiftScore,
   Quality,
+  QualityIndex,
   WeightVector,
 } from '../models';
 import { STRONG_THRESHOLD, TOP_N, WEAK_THRESHOLD } from '../config';
+import { giftExpression, pseudoIndexes } from './quality-indexes';
+import { maxWeightFor } from './weights';
 
 /**
  * Euclidean distance between the normalized user vector and a gift profile.
@@ -30,30 +33,58 @@ export function euclideanDistance(
 }
 
 /**
- * Score every gift: `(1 − distance) × 100`, computed literally so it can be
- * negative (docs §2.4). `display` clamps negatives to 0 for the UI.
+ * Score every gift.
  *
- * Sorted by raw score descending; ties fall back to the smaller gift id.
+ * Primary result: `expression` — how strongly the gift's qualities are
+ * expressed (weighted mean of the 1–5 indexes, shown as a percentage).
+ * Secondary diagnostic: `match` — the old Euclidean profile comparison
+ * `(1 − distance) × 100`; it can be negative and is not used for ranking.
+ *
+ * `indexes` comes from a completed survey. Without them (manual calibration,
+ * 360° aggregate, uniform start) pseudo-indexes are derived from the weights so
+ * the screen still has a comparable 0–100 scale.
+ *
+ * `signExpressions` holds direct percentages for the sign gifts (19–22) from
+ * questions 161–200. When present they replace the quality-based expression:
+ * the qualities are only indirect proxies there, while the block asks about the
+ * manifestation directly.
+ *
+ * Sorted by expression descending; ties fall back to the smaller gift id, so a
+ * neutral profile ranks all gifts equally instead of favouring sparse profiles.
  */
 export function scoreGifts(
   weights: WeightVector,
   pool: number,
   qualities: readonly Quality[],
   gifts: readonly GiftProfile[],
+  indexes: readonly QualityIndex[] | null = null,
+  signExpressions: ReadonlyMap<number, number> | null = null,
 ): GiftScore[] {
+  const effectiveIndexes =
+    indexes ?? pseudoIndexes(weights, maxWeightFor(qualities.length));
+
   return gifts
     .map((gift) => {
       const distance = euclideanDistance(weights, pool, qualities, gift);
-      const score = (1 - distance) * 100;
+      const match = (1 - distance) * 100;
+      const direct = signExpressions?.get(gift.id);
+      const expression =
+        direct !== undefined ? direct : giftExpression(gift, effectiveIndexes);
       return {
         giftId: gift.id,
         giftName: gift.name,
         distance,
-        score,
-        display: Math.max(0, score),
+        match,
+        expression,
+        display: Math.max(0, Math.min(100, expression)),
       };
     })
-    .sort((a, b) => b.score - a.score || a.giftId - b.giftId);
+    // Sort by the displayed value with a small epsilon: equal expression must
+    // stay a neutral tie instead of being ordered by rounding noise.
+    .sort((a, b) => {
+      const diff = b.display - a.display;
+      return Math.abs(diff) > 1e-6 ? diff : a.giftId - b.giftId;
+    });
 }
 
 export interface InterpretOptions {
@@ -65,8 +96,8 @@ export interface InterpretOptions {
 /**
  * Rank, strength label and top-3 flag.
  *
- * Thresholds use the *displayed* percentage, so a negative raw score lands in
- * the weak zone instead of a separate negative bucket.
+ * Thresholds use the displayed expression percentage (4 из 5 = 80%), not the
+ * secondary profile match.
  */
 export function interpret(
   scores: readonly GiftScore[],

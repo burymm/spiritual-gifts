@@ -1,5 +1,6 @@
 import { Routes } from '@angular/router';
 
+import { adminGuard } from './core/admin.guard';
 import { authGuard } from './core/auth.guard';
 
 /**
@@ -59,6 +60,15 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./features/result/result.component').then(
         (m) => m.ResultComponent,
+      ),
+  },
+  {
+    path: 'admin',
+    title: 'Админка — Карта духовных даров',
+    canActivate: [adminGuard],
+    loadComponent: () =>
+      import('./features/admin/admin.component').then(
+        (m) => m.AdminComponent,
       ),
   },
   { path: '**', redirectTo: 'login' },
