@@ -4,6 +4,8 @@ import { buildApp, findStaticDir } from './app.js';
 import { ConfigError, loadConfig } from './config.js';
 import type { Config } from './config.js';
 import { runMigrations } from './db/migrate.js';
+import { PostgresInvitationRepository } from './repo/invitations.js';
+import { PostgresPastorRepository } from './repo/pastors.js';
 import { PostgresProfileRepository } from './repo/postgres.js';
 
 function fail(message: string): never {
@@ -61,6 +63,8 @@ async function main(): Promise<void> {
 
   const app = await buildApp({
     repo: new PostgresProfileRepository(pool),
+    invitations: new PostgresInvitationRepository(pool),
+    pastors: new PostgresPastorRepository(pool),
     rules: { qualityCount: config.qualityCount, baseWeight: config.baseWeight },
     corsOrigin: config.corsOrigin,
     auth: config.auth,

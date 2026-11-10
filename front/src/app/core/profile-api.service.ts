@@ -1,6 +1,7 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
+import { map } from 'rxjs/operators';
 
 import { API_BASE_URL } from './config';
 import type { AnswerValue, AssessmentResult } from './models';
@@ -28,6 +29,16 @@ export interface AdminProfile extends StoredProfile {
   readonly ownerEmail: string;
   readonly createdAt: string;
   readonly updatedAt: string;
+}
+
+/** Присланная оценка с почтой владельца — только для админского среднего. */
+export interface AdminEvaluation {
+  readonly id: string;
+  readonly ownerEmail: string;
+  readonly role: 'pastor' | 'friend';
+  readonly source: StoredSource;
+  readonly weights: readonly number[];
+  readonly createdAt: string;
 }
 
 /** Thin wrapper over /api/profiles so callers never see HttpClient types. */
@@ -64,6 +75,17 @@ export class ProfileApi {
   adminProfiles(): Promise<AdminProfile[]> {
     return firstValueFrom(
       this.http.get<AdminProfile[]>(`${API_BASE_URL}/admin/profiles`),
+    );
+  }
+
+  /** Все присланные оценки — админ видит средний результат любого человека. */
+  adminEvaluations(): Promise<readonly AdminEvaluation[]> {
+    return firstValueFrom(
+      this.http
+        .get<{ evaluations: AdminEvaluation[] }>(
+          `${API_BASE_URL}/admin/evaluations`,
+        )
+        .pipe(map((response) => response.evaluations)),
     );
   }
 }

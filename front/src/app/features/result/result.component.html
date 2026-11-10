@@ -1,17 +1,62 @@
 <section class="page">
   <header class="page-head">
     <div>
-      <p class="eyebrow">Шаг 4 · результат</p>
+      <p class="eyebrow">
+        {{ inviteToken === null ? 'Шаг 4 · результат' : 'Оценка · шаг 3, результат' }}
+      </p>
       <h1>Возможные духовные дары</h1>
       <p class="lead">
-        {{ sourceLabel() }}. Процент показывает выраженность качеств дара:
-        средний ответ по его качествам, где 4 из 5 — это 80%. Это подсказка для
-        размышления, а не диагноз и не статистически подтверждённая вероятность.
+        {{ sourceLabel() }}.
+        @if (inviteToken !== null) {
+          Оценка в роли {{ evaluation.roleLabel() }}:
+        }
+        процент показывает выраженность качеств дара: средний ответ по его
+        качествам, где 4 из 5 — это 80%. Это подсказка для размышления, а не
+        диагноз и не статистически подтверждённая вероятность.
       </p>
     </div>
-    <a class="btn btn-ghost" routerLink="/diagram">Изменить диаграмму</a>
+    @if (inviteToken === null) {
+      <a class="btn btn-ghost" routerLink="/diagram">Изменить диаграмму</a>
+    } @else if (!evaluation.submitted()) {
+      <a class="btn btn-ghost" [routerLink]="diagramLink">Изменить диаграмму</a>
+    }
   </header>
 
+  @if (inviteToken === null) {
+  <section class="average" [class.is-on]="showingAverage()">
+    <label class="switch">
+      <input
+        type="checkbox"
+        [checked]="averageOn()"
+        [disabled]="statsLoading() || statsError() || !averageAvailable()"
+        (change)="toggleAverage($event)"
+      />
+      <span class="switch-text">
+        <strong>Показывать средний результат</strong>
+        <span>
+          @if (statsLoading()) {
+            Проверяем присланные оценки…
+          } @else if (statsError()) {
+            Не удалось загрузить оценки — средний результат неизвестен.
+          } @else if (!averageAvailable()) {
+            Оценок пока нет — показываем только вашу анкету.
+          } @else if (showingAverage()) {
+            Ваша анкета и {{ voicesLabel() }} — каждый голос считается равным.
+          } @else {
+            Выключено: только ваши ответы и веса.
+          }
+        </span>
+      </span>
+    </label>
+    @if (statsError()) {
+      <button class="btn btn-ghost btn-small" type="button" (click)="reloadStats()">
+        Обновить
+      </button>
+    }
+  </section>
+  }
+
+  @if (showResult()) {
   <div class="top-grid">
     @for (item of top(); track item.score.giftId) {
       <article class="top-card" [class.is-strong]="item.strength === 'strong'">
@@ -40,7 +85,7 @@
     </div>
 
     <ul class="gift-list">
-      @for (item of result().interpretations; track item.score.giftId) {
+      @for (item of view().interpretations; track item.score.giftId) {
         <li class="gift-row" [class.is-top]="item.top">
           <span class="gift-rank">{{ item.rank }}</span>
           <span class="gift-name">{{ item.score.giftName }}</span>
@@ -57,6 +102,175 @@
       }
     </ul>
   </section>
+  } @else {
+  <section class="invite send">
+    <div class="invite-head">
+      <h2>Оценка уже отправлена</h2>
+      <p>
+        Вы уже прошли эту ссылку — спасибо. Ссылка одноразовая, повторно
+        ответить по ней нельзя, а присланное видит только его автор.
+      </p>
+    </div>
+    <div class="send-actions">
+      <a class="btn btn-primary btn-lg" routerLink="/">На главную</a>
+    </div>
+  </section>
+  }
+
+  @if (inviteToken === null) {
+  <section class="invite">
+    <div class="invite-head">
+      <h2>Пригласить</h2>
+      <p>
+        Пастор и друзья могут оценить вас со стороны — их ответы дополнят вашу
+        картину. Для полного результата нужен ответ пастора и хотя бы одного
+        друга.
+      </p>
+    </div>
+
+    <div class="invite-grid">
+      @for (card of inviteCards; track card.role) {
+        <article class="invite-card">
+          <h3>{{ card.title }}</h3>
+          <p class="invite-text">{{ card.hint }}</p>
+
+          <label class="invite-field">
+            <span>{{ card.label }}</span>
+            <input
+              type="email"
+              inputmode="email"
+              autocomplete="email"
+              [placeholder]="card.placeholder"
+              [value]="invites()[card.role].email"
+              (input)="setEmail(card.role, $event)"
+            />
+          </label>
+
+          @if (inviteLink(card.role); as link) {
+            <div class="invite-link">
+              <input
+                type="text"
+                readonly
+                [value]="link"
+                [attr.aria-label]="'Ссылка-приглашение: ' + card.title"
+              />
+              <button
+                class="btn btn-ghost"
+                type="button"
+                (click)="copyInvite(card.role)"
+              >
+                {{ copied() === card.role ? 'Скопировано' : 'Копировать' }}
+              </button>
+            </div>
+            <p class="invite-status">
+              Ссылка привязана к этой почте и роли. Передайте её любым удобным
+              способом.
+            </p>
+          } @else if (invites()[card.role].status === 'loading') {
+            <p class="invite-status">Создаём ссылку…</p>
+          } @else if (invites()[card.role].status === 'locked') {
+            <p class="invite-status is-locked">
+              {{ invites()[card.role].error }}
+            </p>
+          } @else if (invites()[card.role].status === 'error') {
+            <p class="invite-status is-error">
+              {{ invites()[card.role].error }}
+            </p>
+          } @else {
+            <p class="invite-status">
+              @if (invites()[card.role].email === '') {
+                Ссылка появится, как только укажете почту.
+              } @else {
+                Проверьте адрес: ссылка появится после корректной почты.
+              }
+            </p>
+          }
+
+          @if (invitesOf(card.role).length > 0) {
+            <ul class="invite-people">
+              @for (item of invitesOf(card.role); track item.token) {
+                @if (
+                  item.usedAt !== null ||
+                  item.token !== invites()[card.role].token
+                ) {
+                  <li [class.is-done]="item.usedAt !== null">
+                    <span class="person">{{ item.email }}</span>
+                    @if (item.usedAt !== null) {
+                      <span class="state is-done">
+                        оценка получена · {{ formatDate(item.usedAt) }}
+                      </span>
+                    } @else {
+                      <span class="state">ждём ответа</span>
+                      <button
+                        class="btn btn-ghost btn-small"
+                        type="button"
+                        (click)="copyToken(item.token)"
+                      >
+                        {{ copiedToken() === item.token ? 'Скопировано' : 'Копировать' }}
+                      </button>
+                    }
+                  </li>
+                }
+              }
+            </ul>
+          }
+        </article>
+      }
+    </div>
+
+    <p class="invite-note">
+      Ссылка ведёт на экран приглашения: приглашённый сначала оценивает ваш
+      профиль и только после отправки может строить свой. Ссылка одноразовая:
+      после ответа она закрыта и в списке отмечена как «оценка получена».
+      Присланное входит в средний результат голосом наравне с вашей анкетой.
+    </p>
+  </section>
+  } @else {
+  <section class="invite send">
+    <div class="invite-head">
+      <h2>{{ evaluation.submitted() ? 'Оценка отправлена' : 'Отправить результат' }}</h2>
+      <p>
+        @if (evaluation.submitted()) {
+          Оценка уже у владельца профиля: она попала в средний результат
+          голосом наравне с его анкетой и другими оценками.
+        } @else {
+          Оценка уйдёт владельцу профиля: он увидит её вместе с другими
+          оценками, каждая считается одним голосом. По этой ссылке ответ
+          принимается один раз — после отправки его уже не изменить.
+        }
+      </p>
+    </div>
+
+    @if (evaluation.submitted()) {
+      <p class="send-done" role="status">
+        Вы уже прошли — спасибо! Оценка в роли
+        {{ evaluation.roleLabel() }} отправлена
+        @if (evaluation.submittedAt(); as sentAt) {
+          · {{ formatDate(sentAt) }}
+        }
+      </p>
+      <div class="send-actions">
+        <a class="btn btn-primary btn-lg" [routerLink]="ownProfileLink()">
+          Перейти в свой профиль
+        </a>
+      </div>
+    } @else {
+      @if (evaluation.error(); as message) {
+        <p class="send-error" role="alert">{{ message }}</p>
+      }
+      <div class="send-actions">
+        <button
+          class="btn btn-primary btn-lg"
+          type="button"
+          [disabled]="evaluation.busy()"
+          (click)="submit()"
+        >
+          {{ evaluation.busy() ? 'Отправляем…' : 'Отправить результат' }}
+        </button>
+      </div>
+    }
+  </section>
+  }
 
   <p class="footnote">
     Процент — средняя выраженность качеств дара по шкале 1–5 (4 из 5 — 80%).

@@ -18,6 +18,72 @@
     </button>
   </header>
 
+  <section class="pastors">
+    <header class="pastors-head">
+      <div>
+        <h2>Пасторы</h2>
+        <p class="pastors-lead">
+          У назначенных почт появляется раздел «Пастор»: им присылают ссылки на
+          оценку профиля, а их ответ входит в средний результат. Снятие роли
+          закрывает раздел, остальные данные остаются.
+        </p>
+      </div>
+      <form class="pastor-form" (submit)="assignPastor($event)">
+        <input
+          class="pastor-input"
+          type="email"
+          autocomplete="off"
+          placeholder="pastor@church.ru"
+          aria-label="Почта будущего пастора"
+          [value]="pastorEmail()"
+          [disabled]="pastorBusy()"
+          (input)="setPastorEmail($event)"
+        />
+        <button
+          class="btn btn-primary"
+          type="submit"
+          [disabled]="pastorBusy() || pastorEmail().trim() === ''"
+        >
+          Назначить
+        </button>
+      </form>
+    </header>
+
+    @if (pastorError() !== null) {
+      <p class="pastor-message is-error" role="status">{{ pastorError() }}</p>
+    } @else if (pastorNotice() !== null) {
+      <p class="pastor-message" role="status">{{ pastorNotice() }}</p>
+    }
+
+    @if (pastors().length === 0) {
+      <p class="state pastors-empty">Пока никто не назначен пастором.</p>
+    } @else {
+      <ul class="pastor-list">
+        @for (pastor of pastors(); track pastor.email) {
+          <li class="pastor-row">
+            <div class="pastor-id">
+              <span class="pastor-email">{{ pastor.email }}</span>
+              <span class="pastor-meta">
+                назначен {{ pastor.assignedAt | date: 'dd.MM.yyyy' }}
+                @if (pastor.assignedBy !== null) {
+                  · {{ pastor.assignedBy }}
+                }
+              </span>
+            </div>
+            <button
+              class="pastor-remove"
+              type="button"
+              [disabled]="pastorBusy()"
+              (click)="removePastor(pastor.email)"
+            >
+              Снять
+            </button>
+          </li>
+        }
+      </ul>
+    }
+  </section>
+
   @if (loading()) {
     <p class="state">Загружаем профили…</p>
   } @else if (error() !== null) {
@@ -45,7 +111,17 @@
         />
         Только завершённые
       </label>
+      <label class="filter">
+        <input
+          type="checkbox"
+          [checked]="averageOn()"
+          [disabled]="evaluationsCount() === 0"
+          (change)="setAverage($event)"
+        />
+        Средний результат
+      </label>
       <span class="summary">
+        Оценок: {{ evaluationsCount() }} ·
         Всего: {{ rows().length }} · анкета завершена: {{ completed() }}
       </span>
     </div>
@@ -77,35 +153,11 @@
               </span>
             </header>
 
-            <div class="top-grid">
-              @for (item of top(row); track item.score.giftId) {
-                <div class="top-item">
-                  <span class="top-rank">{{ item.rank }}</span>
-                  <span class="top-name">{{ item.score.giftName }}</span>
-                  <span class="top-percent">{{ percent(item) }}%</span>
-                </div>
-              }
-            </div>
-
-            <details class="all">
-              <summary>Все 22 дара</summary>
-              <ol class="all-list">
-                @for (item of row.result.interpretations; track item.score.giftId) {
-                  <li class="gift">
-                    <span class="gift-rank">{{ item.rank }}</span>
-                    <span class="gift-name">{{ item.score.giftName }}</span>
-                    <span class="gift-bar">
-                      <span
-                        class="gift-fill"
-                        [class.strong]="item.strength === 'strong'"
-                        [style.width.%]="width(item.score.display)"
-                      ></span>
-                    </span>
-                    <span class="gift-value">{{ percent(item) }}%</span>
-                  </li>
-                }
-              </ol>
-            </details>
+            <app-profile-summary
+              [profile]="row.profile"
+              [evaluations]="evaluationsOf(row.profile.ownerEmail)"
+              [averageOn]="averageOn()"
+            />
           </article>
         }
       </div>

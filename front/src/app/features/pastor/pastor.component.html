@@ -1,0 +1,110 @@
+<section class="page">
+  <header class="page-head">
+    <div>
+      <p class="eyebrow">Пастор</p>
+      <h1>Люди, которые вас пригласили</h1>
+      <p class="lead">
+        Здесь только те, кто прислал вам анкету на оценку, — ваши люди, а не все
+        пользователи. Видно их собственный результат и средний: тумблер ниже
+        добавляет к профилю присланные оценки, каждая считается равным голосом.
+      </p>
+    </div>
+    <div class="head-actions">
+      <button
+        class="btn btn-ghost"
+        type="button"
+        [disabled]="loading()"
+        (click)="load()"
+      >
+        Обновить
+      </button>
+      <a class="btn btn-ghost" routerLink="/result">Мой результат</a>
+    </div>
+  </header>
+
+  @if (loading()) {
+    <p class="state">Загружаем людей…</p>
+  } @else if (error() !== null) {
+    <div class="state state-error">
+      <p>{{ error() }}</p>
+      <button class="btn btn-ghost" type="button" (click)="load()">
+        Повторить
+      </button>
+    </div>
+  } @else if (members().length === 0) {
+    <div class="empty-card">
+      <h2>Пока никто не присылал вам анкету</h2>
+      <p>
+        Ссылку на оценку выдаёт владелец профиля на своей странице результата —
+        она приходит к вам вместе с почтой, к которой привязана. Как только
+        ссылка появится, человек будет в этом списке вместе со своим профилем.
+      </p>
+    </div>
+  } @else {
+    <section class="average" [class.is-on]="averageOn()">
+      <label class="switch">
+        <input
+          type="checkbox"
+          [checked]="averageOn()"
+          [disabled]="!anyEvaluations()"
+          (change)="setAverage($event)"
+        />
+        <span class="switch-text">
+          <strong>Показывать средний результат</strong>
+          <span>
+            @if (!anyEvaluations()) {
+              Присланных оценок пока нет — виден только профиль человека.
+            } @else if (averageOn()) {
+              Включено: к профилю человека добавляются присланные оценки,
+              каждая считается равным голосом.
+            } @else {
+              Выключено: только то, что человек отметил сам.
+            }
+          </span>
+        </span>
+      </label>
+    </section>
+
+    <div class="member-list">
+      @for (member of members(); track member.email) {
+        <article class="member-card">
+          <header class="member-head">
+            <div class="member-id">
+              <h2>{{ member.email }}</h2>
+              <p class="member-meta">
+                приглашение от {{ member.invitedAt | date: 'dd.MM.yyyy' }} ·
+                оценить {{ roleLabel(member.role) }}
+              </p>
+            </div>
+            <span class="badge" [class.is-done]="member.evaluations.length > 0">
+              @if (member.evaluations.length > 0) {
+                оценок: {{ member.evaluations.length }}
+              } @else {
+                ждёт вашей оценки
+              }
+            </span>
+          </header>
+
+          @if (member.profile; as profile) {
+            <app-profile-summary
+              [profile]="profile"
+              [evaluations]="member.evaluations"
+              [averageOn]="averageOn()"
+            />
+          } @else {
+            <p class="member-empty">
+              Анкета ещё не заполнена — человек не сохранил свой профиль, поэтому
+              результата пока нет.
+            </p>
+          }
+        </article>
+      }
+    </div>
+
+    <p class="footnote">
+      Порядок — по дате приглашения. В списке только те, кто выдал вам ссылку:
+      всех пользователей видит администратор. Снятие роли пастора закрывает
+      весь раздел.
+    </p>
+  }
+</section>

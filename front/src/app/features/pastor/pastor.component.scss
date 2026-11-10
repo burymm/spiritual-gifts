@@ -1,0 +1,106 @@
+.state {
+  margin: 24px 0;
+  color: var(--text-soft);
+}
+
+.state-error {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  padding: 16px 18px;
+  border: 1px solid var(--border);
+  border-left: 3px solid #b45454;
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.state-error p {
+  margin: 0;
+}
+
+.empty-card {
+  padding: 22px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.empty-card h2 {
+  margin: 0 0 8px;
+  font-size: 17px;
+}
+
+.empty-card p {
+  margin: 0;
+  color: var(--text-soft);
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+.member-list {
+  display: grid;
+  gap: 14px;
+}
+
+.member-card {
+  padding: 18px 20px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.member-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.member-id {
+  min-width: 0;
+}
+
+.member-head h2 {
+  margin: 0;
+  font-size: 17px;
+  overflow-wrap: anywhere;
+}
+
+.member-meta {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 12.5px;
+}
+
+.badge {
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #f6eee6;
+  color: #8a5a2b;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.badge.is-done {
+  background: #e6f2e9;
+  color: #24663a;
+}
+
+.member-empty {
+  margin: 14px 0 0;
+  color: var(--muted);
+  font-size: 13.5px;
+  line-height: 1.6;
+}
+
+.footnote {
+  margin: 20px 4px 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.6;
+}

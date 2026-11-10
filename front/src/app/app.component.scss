@@ -61,6 +61,17 @@
   color: var(--text);
 }
 
+.nav-tag {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.nav a.is-active .nav-tag {
+  color: var(--accent-ink);
+  opacity: 0.75;
+}
+
 .nav a.is-active {
   background: var(--accent-soft);
   color: var(--accent-ink);

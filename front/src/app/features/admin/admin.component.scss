@@ -1,3 +1,134 @@
+.pastors {
+  margin-bottom: 26px;
+  padding: 18px 20px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.pastors-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+
+.pastors-head h2 {
+  margin: 0 0 4px;
+  font-size: 18px;
+}
+
+.pastors-lead {
+  margin: 0;
+  max-width: 620px;
+  color: var(--text-soft);
+  font-size: 13.5px;
+  line-height: 1.6;
+}
+
+.pastor-form {
+  display: flex;
+  gap: 10px;
+  flex: 1 1 320px;
+  max-width: 460px;
+}
+
+.pastor-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+}
+
+.pastor-input:focus {
+  outline: 2px solid var(--accent-soft);
+  border-color: var(--accent);
+}
+
+.pastor-message {
+  margin: 12px 0 0;
+  color: var(--accent-ink);
+  font-size: 13px;
+}
+
+.pastor-message.is-error {
+  color: #a34040;
+}
+
+.pastors-empty {
+  margin: 14px 0 0;
+  color: var(--muted);
+  font-size: 13.5px;
+}
+
+.pastor-list {
+  list-style: none;
+  margin: 14px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.pastor-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 10px 12px;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius);
+  background: var(--surface-alt);
+}
+
+.pastor-id {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 2px;
+}
+
+.pastor-email {
+  font-size: 14px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.pastor-meta {
+  color: var(--muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.pastor-remove {
+  flex: 0 0 auto;
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text-soft);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.pastor-remove:hover:not(:disabled) {
+  border-color: #b45454;
+  color: #a34040;
+}
+
+.pastor-remove:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 .toolbar {
   display: flex;
   align-items: center;
@@ -116,133 +247,9 @@
   color: #24663a;
 }
 
-.top-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
-  margin: 16px 0 12px;
-}
-
-.top-item {
-  display: grid;
-  grid-template-columns: 24px minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 12px;
-  border: 1px solid var(--border-soft);
-  border-radius: var(--radius);
-  background: var(--surface-alt);
-}
-
-.top-rank {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  background: var(--accent-soft);
-  color: var(--accent-ink);
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.top-name {
-  min-width: 0;
-  font-size: 13.5px;
-  font-weight: 600;
-  overflow-wrap: anywhere;
-}
-
-.top-percent {
-  font-size: 14px;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-}
-
-.all {
-  border-top: 1px solid var(--border-soft);
-  padding-top: 10px;
-}
-
-.all summary {
-  cursor: pointer;
-  color: var(--accent-ink);
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.all-list {
-  list-style: none;
-  margin: 10px 0 0;
-  padding: 0;
-}
-
-.gift {
-  display: grid;
-  grid-template-columns: 28px minmax(150px, 1.2fr) minmax(120px, 3fr) 58px;
-  align-items: center;
-  gap: 10px;
-  padding: 6px 0;
-  border-top: 1px solid var(--border-soft);
-}
-
-.gift:first-child {
-  border-top: 0;
-}
-
-.gift-rank {
-  color: var(--muted);
-  font-size: 12px;
-  font-variant-numeric: tabular-nums;
-}
-
-.gift-name {
-  font-size: 13.5px;
-}
-
-.gift-bar {
-  height: 7px;
-  border-radius: 999px;
-  background: var(--track);
-  overflow: hidden;
-}
-
-.gift-fill {
-  display: block;
-  height: 100%;
-  border-radius: inherit;
-  background: #8f9bd6;
-}
-
-.gift-fill.strong {
-  background: #4f8a63;
-}
-
-.gift-value {
-  text-align: right;
-  font-size: 12.5px;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-}
-
 .footnote {
   margin: 20px 4px 0;
   color: var(--muted);
   font-size: 13px;
   line-height: 1.6;
-}
-
-@media (max-width: 760px) {
-  .top-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .gift {
-    grid-template-columns: 24px 1fr 54px;
-  }
-
-  .gift-bar {
-    grid-column: 2 / -1;
-  }
 }

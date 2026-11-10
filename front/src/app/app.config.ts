@@ -9,6 +9,8 @@ import { provideRouter } from '@angular/router';
 
 import { routes } from './app.routes';
 import { authInterceptor } from './core/auth.interceptor';
+import { ASSESSMENT_STATE } from './state/assessment-state';
+import { AssessmentStore } from './state/assessment.store';
 import { ProfilePersistence } from './state/profile-persistence.service';
 
 export const appConfig: ApplicationConfig = {
@@ -19,5 +21,8 @@ export const appConfig: ApplicationConfig = {
     provideHttpClient(withInterceptors([authInterceptor])),
     // Восстанавливаем вход, а затем сохранённый профиль — до первого кадра.
     provideAppInitializer(() => inject(ProfilePersistence).restore()),
+    // Свои разделы работают со своим профилем; оценка по ссылке перекрывает
+    // это в маршрутах приглашения.
+    { provide: ASSESSMENT_STATE, useExisting: AssessmentStore },
   ],
 };

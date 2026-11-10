@@ -1,0 +1,40 @@
+<div class="top-grid">
+  @for (item of top(); track item.score.giftId) {
+    <div class="top-item" [class.is-strong]="item.strength === 'strong'">
+      <span class="top-rank">{{ item.rank }}</span>
+      <span class="top-name">{{ item.score.giftName }}</span>
+      <span class="top-percent">{{ percent(item) }}%</span>
+    </div>
+  }
+</div>
+
+<p class="view-line">
+  @if (!averageAvailable()) {
+    Оценок ещё нет — показаны только ответы и веса этого человека.
+  } @else if (showingAverage()) {
+    Средний результат: анкета и {{ voicesLabel() }} — каждый голос считается
+    равным.
+  } @else {
+    Средний результат выключен — показаны только ответы и веса человека.
+  }
+</p>
+
+<details class="all">
+  <summary>Все 22 дара</summary>
+  <ol class="all-list">
+    @for (item of result().interpretations; track item.score.giftId) {
+      <li class="gift">
+        <span class="gift-rank">{{ item.rank }}</span>
+        <span class="gift-name">{{ item.score.giftName }}</span>
+        <span class="gift-bar">
+          <span
+            class="gift-fill"
+            [class.strong]="item.strength === 'strong'"
+            [style.width.%]="width(item.score.display)"
+          ></span>
+        </span>
+        <span class="gift-value">{{ percent(item) }}%</span>
+      </li>
+    }
+  </ol>
+</details>

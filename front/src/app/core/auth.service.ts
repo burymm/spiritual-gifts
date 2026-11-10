@@ -3,6 +3,7 @@ import { Injectable, computed, inject, signal } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 
 import { API_BASE_URL } from './config';
+import { PastorApi } from './pastor-api.service';
 import { statusOf } from './profile-api.service';
 
 /** Где живёт токен между визитами; сама сессия проверяется сервером. */
@@ -54,10 +55,12 @@ export function takeReturnUrl(): string | null {
 @Injectable({ providedIn: 'root' })
 export class AuthService {
   private readonly http = inject(HttpClient);
+  private readonly pastorApi = inject(PastorApi);
 
   private readonly _token = signal<string | null>(readStoredToken());
   private readonly _email = signal<string | null>(null);
   private readonly _admin = signal(false);
+  private readonly _pastor = signal(false);
   private readonly _mode = signal<AuthMode | null>(null);
   private readonly _ready = signal(false);
 
@@ -65,6 +68,8 @@ export class AuthService {
   readonly email = this._email.asReadonly();
   /** Флаг ставит сервер: по одной почте из ADMIN_EMAIL. */
   readonly admin = this._admin.asReadonly();
+  /** Назначен ли этот аккаунт пастором — открывает раздел «Пастор». */
+  readonly pastor = this._pastor.asReadonly();
   readonly mode = this._mode.asReadonly();
   readonly ready = this._ready.asReadonly();
   readonly signedIn = computed(() => this._email() !== null);
@@ -114,6 +119,7 @@ export class AuthService {
     this.storeToken(response.token);
     this._email.set(response.email);
     this._admin.set(response.admin === true);
+    this._pastor.set(await this.loadPastorFlag());
   }
 
   async logout(): Promise<void> {
@@ -153,6 +159,7 @@ export class AuthService {
     this._token.set(null);
     this._email.set(null);
     this._admin.set(false);
+    this._pastor.set(false);
   }
 
   /** Узнаём почту по токену; 'ok' либо HTTP-статус неудачи (0 — нет сети). */
@@ -163,9 +170,23 @@ export class AuthService {
       );
       this._email.set(me.email);
       this._admin.set(me.admin === true);
+      this._pastor.set(await this.loadPastorFlag());
       return 'ok';
     } catch (error) {
       return statusOf(error);
+    }
+  }
+
+  /**
+   * Пастор — это запись в базе, а не поле токена: спрашиваем отдельно, чтобы
+   * снятие роли действовало при следующем входе или обновлении страницы.
+   * Ошибка сети не закрывает доступ к своим разделам — просто без вкладки.
+   */
+  private async loadPastorFlag(): Promise<boolean> {
+    try {
+      return (await this.pastorApi.me()).pastor;
+    } catch {
+      return false;
     }
   }
 }

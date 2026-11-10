@@ -152,6 +152,116 @@ a {
   font-size: 15px;
 }
 
+/* Блок с тумблером: средний результат на странице результата, у админа и
+   пастора. */
+.average {
+  margin-bottom: 26px;
+  padding: 16px 18px;
+  background: var(--surface-alt);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-lg);
+}
+
+.average.is-on {
+  border-color: var(--accent);
+}
+
+.average > .btn {
+  margin-top: 10px;
+}
+
+.switch {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  cursor: pointer;
+}
+
+.switch input {
+  width: 18px;
+  height: 18px;
+  margin: 2px 0 0;
+  accent-color: var(--accent);
+}
+
+.switch input:disabled + .switch-text {
+  opacity: 0.6;
+}
+
+.switch-text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.switch-text > span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+/* Пояснительный блок шага: «основное» и «прототип» на анкете и диаграмме. */
+.callout {
+  display: grid;
+  gap: 8px;
+  margin: 0 0 20px;
+  padding: 16px 18px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.callout.is-proto {
+  border-left-color: #c08a3e;
+  background: #fffaf2;
+}
+
+.callout-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.callout h2 {
+  margin: 0;
+  font-size: 16px;
+  line-height: 1.35;
+}
+
+.callout-badge {
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.callout-badge.is-proto {
+  background: #f7ead6;
+  color: #8a5a2b;
+}
+
+.callout p {
+  margin: 0;
+  max-width: 900px;
+  color: var(--text-soft);
+  font-size: 13.5px;
+  line-height: 1.65;
+}
+
+.callout .btn {
+  justify-self: start;
+  margin-top: 4px;
+}
+
 @media (max-width: 560px) {
   .page {
     padding: 20px 14px 48px;

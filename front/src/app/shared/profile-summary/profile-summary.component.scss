@@ -1,0 +1,134 @@
+.top-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin: 14px 0 10px;
+}
+
+.top-item {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius);
+  background: var(--surface-alt);
+}
+
+.top-item.is-strong {
+  border-color: var(--accent);
+}
+
+.top-rank {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.top-name {
+  min-width: 0;
+  font-size: 13.5px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.top-percent {
+  font-size: 14px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.view-line {
+  margin: 0 0 10px;
+  color: var(--muted);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.all {
+  border-top: 1px solid var(--border-soft);
+  padding-top: 10px;
+}
+
+.all summary {
+  cursor: pointer;
+  color: var(--accent-ink);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.all-list {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+}
+
+.gift {
+  display: grid;
+  grid-template-columns: 28px minmax(150px, 1.2fr) minmax(120px, 3fr) 58px;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+  border-top: 1px solid var(--border-soft);
+}
+
+.gift:first-child {
+  border-top: 0;
+}
+
+.gift-rank {
+  color: var(--muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.gift-name {
+  font-size: 13.5px;
+}
+
+.gift-bar {
+  height: 7px;
+  border-radius: 999px;
+  background: var(--track);
+  overflow: hidden;
+}
+
+.gift-fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: #8f9bd6;
+}
+
+.gift-fill.strong {
+  background: #4f8a63;
+}
+
+.gift-value {
+  text-align: right;
+  font-size: 12.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 760px) {
+  .top-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .gift {
+    grid-template-columns: 24px 1fr 54px;
+  }
+
+  .gift-bar {
+    grid-column: 2 / -1;
+  }
+}

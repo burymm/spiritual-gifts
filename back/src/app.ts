@@ -9,15 +9,29 @@ import Fastify, { type FastifyError, type FastifyInstance } from 'fastify';
 import { isAdminEmail, registerAuthRoutes, userOf } from './auth/routes.js';
 import { DEFAULT_ADMIN_EMAIL, type AuthConfig } from './config.js';
 import {
+  INVITE_TOKEN_PATTERN,
+  inviteSchema,
+  type InvitationRole,
+} from './domain/invitation.js';
+import { pastorSchema } from './domain/pastor.js';
+import {
   createSchemas,
   issueMessages,
   type NewProfile,
   type WeightRules,
 } from './domain/profile.js';
-import type { ProfileRepository } from './repo/types.js';
+import type {
+  InvitationRepository,
+  PastorRepository,
+  ProfileRepository,
+} from './repo/types.js';
 
 export interface AppOptions {
   readonly repo: ProfileRepository;
+  /** Ссылки-приглашения; без них приглашать некого — роут отвечает 503. */
+  readonly invitations?: InvitationRepository;
+  /** Назначенные пасторы; без них раздел «Пастор» никому не открыт. */
+  readonly pastors?: PastorRepository;
   readonly rules: WeightRules;
   readonly corsOrigin?: string;
   /** Настройки входа; без них — эмуляция входа (так удобно в тестах). */
@@ -68,6 +82,14 @@ interface IdParams {
   id: string;
 }
 
+interface TokenParams {
+  token: string;
+}
+
+interface EmailParams {
+  email: string;
+}
+
 /** Коды, по которым понятно, что упала именно база, а не логика запроса. */
 const DB_UNAVAILABLE_CODES = new Set([
   'ECONNREFUSED',
@@ -82,7 +104,7 @@ const DB_UNAVAILABLE_CODES = new Set([
 ]);
 
 export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
-  const { repo, rules } = options;
+  const { repo, rules, invitations, pastors } = options;
   const auth = options.auth ?? fallbackAuth();
   const schemas = createSchemas(rules);
 
@@ -189,6 +211,172 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
     return reply.send(await repo.listLatest());
   });
 
+  // Кого админ назначил пастором. Список нужен только админке.
+  app.get('/api/admin/pastors', async (request, reply) => {
+    const email = userOf(request, auth);
+    if (email === null) {
+      return reply.code(401).send({ error: 'Вход не выполнен' });
+    }
+    if (!isAdminEmail(email, auth)) {
+      return reply.code(403).send({ error: 'Доступ только для администратора' });
+    }
+    if (pastors === undefined) {
+      return reply.code(503).send({ error: 'Пасторы недоступны: не подключено хранилище' });
+    }
+
+    reply.header('cache-control', 'no-store');
+    return reply.send({ pastors: await pastors.list() });
+  });
+
+  // Назначить пастора: { email }. Повторное назначение не ошибка — запись та же.
+  app.post('/api/admin/pastors', async (request, reply) => {
+    const adminEmail = userOf(request, auth);
+    if (adminEmail === null) {
+      return reply.code(401).send({ error: 'Вход не выполнен' });
+    }
+    if (!isAdminEmail(adminEmail, auth)) {
+      return reply.code(403).send({ error: 'Доступ только для администратора' });
+    }
+    if (pastors === undefined) {
+      return reply.code(503).send({ error: 'Пасторы недоступны: не подключено хранилище' });
+    }
+
+    const parsed = pastorSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply
+        .code(400)
+        .send({ error: 'Некорректная почта', issues: issueMessages(parsed.error) });
+    }
+
+    const { pastor, created } = await pastors.assign(parsed.data.email, adminEmail);
+    reply.header('cache-control', 'no-store');
+    return reply.code(created ? 201 : 200).send(pastor);
+  });
+
+  // Снять пастора: запись удаляется, раздел у этого аккаунта закрывается.
+  app.delete<{ Params: EmailParams }>(
+    '/api/admin/pastors/:email',
+    async (request, reply) => {
+      const adminEmail = userOf(request, auth);
+      if (adminEmail === null) {
+        return reply.code(401).send({ error: 'Вход не выполнен' });
+      }
+      if (!isAdminEmail(adminEmail, auth)) {
+        return reply.code(403).send({ error: 'Доступ только для администратора' });
+      }
+      if (pastors === undefined) {
+        return reply.code(503).send({ error: 'Пасторы недоступны: не подключено хранилище' });
+      }
+
+      const parsed = pastorSchema.safeParse({ email: request.params.email });
+      if (!parsed.success) {
+        return reply.code(400).send({ error: 'Некорректная почта' });
+      }
+      const removed = await pastors.remove(parsed.data.email);
+      if (!removed) {
+        return reply.code(404).send({ error: 'Этот человек не был назначен пастором' });
+      }
+      return reply.code(204).send();
+    },
+  );
+
+  // Средний результат по всем: админ видит оценки каждого пользователя, чтобы
+  // включать тумблер «показывать средний» в своём списке.
+  app.get('/api/admin/evaluations', async (request, reply) => {
+    const email = userOf(request, auth);
+    if (email === null) {
+      return reply.code(401).send({ error: 'Вход не выполнен' });
+    }
+    if (!isAdminEmail(email, auth)) {
+      return reply.code(403).send({ error: 'Доступ только для администратора' });
+    }
+    if (invitations === undefined) {
+      return reply.code(503).send({ error: 'Оценки недоступны: не подключено хранилище' });
+    }
+
+    const list = await invitations.listAllEvaluations();
+    reply.header('cache-control', 'no-store');
+    return reply.send({
+      evaluations: list.map(({ id, ownerEmail, role, source, weights, createdAt }) => ({
+        id,
+        ownerEmail,
+        role,
+        source,
+        weights,
+        createdAt,
+      })),
+    });
+  });
+
+  // Люди, которые прислали этому пастору анкету на оценку: он видит их профили
+  // и присланные им оценки. Это и есть «члены своей церкви» — тот, кто позвал
+  // пастора; всех пользователей видит только админ.
+  app.get('/api/pastor/profiles', async (request, reply) => {
+    const email = userOf(request, auth);
+    if (email === null) {
+      return reply.code(401).send({ error: 'Вход не выполнен' });
+    }
+    if (pastors === undefined || invitations === undefined) {
+      return reply.code(503).send({ error: 'Раздел пастора недоступен: не подключено хранилище' });
+    }
+    if ((await pastors.find(email)) === null) {
+      return reply
+        .code(403)
+        .send({ error: 'Раздел доступен только назначенным пасторам' });
+    }
+
+    const invited = await invitations.listByInvitee(email);
+    const owners = new Map<string, { invitedAt: string; role: InvitationRole }>();
+    for (const invitation of invited) {
+      const current = owners.get(invitation.ownerEmail);
+      if (current === undefined || invitation.createdAt > current.invitedAt) {
+        owners.set(invitation.ownerEmail, {
+          invitedAt: invitation.createdAt,
+          role: invitation.role,
+        });
+      }
+    }
+
+    const members = [];
+    for (const [ownerEmail, info] of owners) {
+      const profile = await repo.findLatestByOwner(ownerEmail);
+      const evaluations = await invitations.listEvaluationsByOwner(ownerEmail);
+      members.push({
+        email: ownerEmail,
+        invitedAt: info.invitedAt,
+        role: info.role,
+        profile,
+        evaluations: evaluations.map(({ id, role, source, weights, createdAt }) => ({
+          id,
+          role,
+          source,
+          weights,
+          createdAt,
+        })),
+      });
+    }
+    members.sort((a, b) => b.invitedAt.localeCompare(a.invitedAt));
+
+    reply.header('cache-control', 'no-store');
+    return reply.send({ members });
+  });
+
+  // Флаг для шапки и гарда страницы «Пастор»: назначение живёт в базе, а не
+  // в токене, поэтому снятие роли действует сразу.
+  app.get('/api/pastors/me', async (request, reply) => {
+    const email = userOf(request, auth);
+    if (email === null) {
+      return reply.code(401).send({ error: 'Вход не выполнен' });
+    }
+
+    const pastor = pastors === undefined ? null : await pastors.find(email);
+    reply.header('cache-control', 'no-store');
+    return reply.send({
+      pastor: pastor !== null,
+      assignedAt: pastor?.assignedAt ?? null,
+    });
+  });
+
   // Создать профиль: { title?, answers?, weights, source? }
   app.post('/api/profiles', async (request, reply) => {
     const ownerEmail = userOf(request, auth);
@@ -227,6 +415,216 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
     }
     return reply.send(profile);
   });
+
+  // Приглашение оценить профиль. Ссылка выдаётся только после записи в базу:
+  // роль и почта приглашённого живут в записи, в URL — непрозрачный токен.
+  app.post('/api/invitations', async (request, reply) => {
+    const ownerEmail = userOf(request, auth);
+    if (ownerEmail === null) {
+      return reply.code(401).send({ error: 'Вход не выполнен' });
+    }
+    if (invitations === undefined) {
+      return reply.code(503).send({ error: 'Приглашения недоступны: не подключено хранилище' });
+    }
+
+    const parsed = inviteSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply
+        .code(400)
+        .send({ error: 'Некорректное приглашение', issues: issueMessages(parsed.error) });
+    }
+    if (parsed.data.email === ownerEmail) {
+      return reply.code(400).send({ error: 'Нельзя пригласить самого себя' });
+    }
+
+    const invitation = await invitations.createPending({
+      email: parsed.data.email,
+      role: parsed.data.role,
+      ownerEmail,
+    });
+    reply.header('cache-control', 'no-store');
+    return reply.code(201).send({
+      token: invitation.token,
+      email: invitation.email,
+      role: invitation.role,
+    });
+  });
+
+  // Ссылки вошедшего владельца: экран результата отмечает, кто уже прошёл,
+  // и закрывает использованные ссылки. Для использованной ссылки статус —
+  // `usedAt`; сама ссылка остаётся в ответе, но фронт её больше не предлагает.
+  app.get('/api/invitations/mine', async (request, reply) => {
+    const ownerEmail = userOf(request, auth);
+    if (ownerEmail === null) {
+      return reply.code(401).send({ error: 'Вход не выполнен' });
+    }
+    if (invitations === undefined) {
+      return reply.code(503).send({ error: 'Приглашения недоступны: не подключено хранилище' });
+    }
+
+    const list = await invitations.listByOwner(ownerEmail);
+    reply.header('cache-control', 'no-store');
+    return reply.send({
+      invitations: list.map(({ token, email, role, createdAt, usedAt }) => ({
+        token,
+        email,
+        role,
+        createdAt,
+        usedAt,
+      })),
+    });
+  });
+
+  // Роль по токену — без входа: приглашённому регистрация не нужна. Ни почту
+  // владельца, ни почту приглашённого не отдаём: ссылка может уйти дальше.
+  // `completed` — оценка уже прислана, ссылка одноразовая.
+  app.get<{ Params: TokenParams }>('/api/invitations/:token', async (request, reply) => {
+    if (invitations === undefined) {
+      return reply.code(503).send({ error: 'Приглашения недоступны: не подключено хранилище' });
+    }
+
+    const token = request.params.token.trim();
+    if (!INVITE_TOKEN_PATTERN.test(token)) {
+      return reply.code(400).send({ error: 'Некорректная ссылка-приглашение' });
+    }
+
+    const invitation = await invitations.findByToken(token);
+    if (invitation === null) {
+      return reply.code(404).send({ error: 'Приглашение не найдено' });
+    }
+    reply.header('cache-control', 'no-store');
+    return reply.send({
+      role: invitation.role,
+      completed: invitation.usedAt !== null,
+    });
+  });
+
+  // Оценка по ссылке: { weights, answers?, source? } — та же диаграмма, что и в
+  // самооценке, но в роли приглашённого. Почта оценщика — из сессии, поэтому
+  // без входа нельзя, а ссылка одноразовая: вторая оценка получит 409.
+  app.post<{ Params: TokenParams }>(
+    '/api/invitations/:token/evaluation',
+    async (request, reply) => {
+      const evaluatorEmail = userOf(request, auth);
+      if (evaluatorEmail === null) {
+        return reply.code(401).send({ error: 'Вход не выполнен' });
+      }
+      if (invitations === undefined) {
+        return reply.code(503).send({ error: 'Приглашения недоступны: не подключено хранилище' });
+      }
+
+      const token = request.params.token.trim();
+      if (!INVITE_TOKEN_PATTERN.test(token)) {
+        return reply.code(400).send({ error: 'Некорректная ссылка-приглашение' });
+      }
+
+      const parsed = schemas.create.safeParse(request.body);
+      if (!parsed.success) {
+        return reply.code(400).send({
+          error: 'Некорректная оценка',
+          issues: issueMessages(parsed.error),
+        });
+      }
+
+      const invitation = await invitations.findByToken(token);
+      if (invitation === null) {
+        return reply.code(404).send({ error: 'Приглашение не найдено' });
+      }
+      if (invitation.ownerEmail === evaluatorEmail) {
+        return reply
+          .code(400)
+          .send({ error: 'Свою анкету не оценивают: приглашение для другого человека' });
+      }
+      if (invitation.usedAt !== null) {
+        return reply.code(409).send({ error: 'Оценка по этой ссылке уже отправлена' });
+      }
+
+      const evaluation = await invitations.recordEvaluation(invitation.id, {
+        answers: parsed.data.answers,
+        weights: parsed.data.weights,
+        source: parsed.data.source,
+        evaluatorEmail,
+      });
+      if (evaluation === null) {
+        return reply.code(409).send({ error: 'Оценка по этой ссылке уже отправлена' });
+      }
+
+      reply.header('cache-control', 'no-store');
+      return reply.code(201).send({
+        role: invitation.role,
+        completed: true,
+      });
+    },
+  );
+
+  // Присланные оценки — для среднего результата владельца. Почту оценщика не
+  // отдаём: 360° анонимен, а роли достаточно, чтобы объяснить вклад.
+  app.get('/api/evaluations/mine', async (request, reply) => {
+    const ownerEmail = userOf(request, auth);
+    if (ownerEmail === null) {
+      return reply.code(401).send({ error: 'Вход не выполнен' });
+    }
+    if (invitations === undefined) {
+      return reply.code(503).send({ error: 'Оценки недоступны: не подключено хранилище' });
+    }
+
+    const list = await invitations.listEvaluationsByOwner(ownerEmail);
+    reply.header('cache-control', 'no-store');
+    return reply.send({
+      evaluations: list.map(({ id, role, source, weights, createdAt }) => ({
+        id,
+        role,
+        source,
+        weights,
+        createdAt,
+      })),
+    });
+  });
+
+  // Своя отправленная оценка по ссылке: после отправки приглашённый может
+  // перечитать результат. Чужой оценки по токену не отдаём — 403.
+  app.get<{ Params: TokenParams }>(
+    '/api/invitations/:token/evaluation',
+    async (request, reply) => {
+      const email = userOf(request, auth);
+      if (email === null) {
+        return reply.code(401).send({ error: 'Вход не выполнен' });
+      }
+      if (invitations === undefined) {
+        return reply.code(503).send({ error: 'Оценки недоступны: не подключено хранилище' });
+      }
+
+      const token = request.params.token.trim();
+      if (!INVITE_TOKEN_PATTERN.test(token)) {
+        return reply.code(400).send({ error: 'Некорректная ссылка-приглашение' });
+      }
+
+      const invitation = await invitations.findByToken(token);
+      if (invitation === null) {
+        return reply.code(404).send({ error: 'Приглашение не найдено' });
+      }
+
+      const evaluation = await invitations.findEvaluationByToken(token);
+      if (evaluation === null) {
+        return reply.code(404).send({ error: 'Оценка по этой ссылке ещё не отправлена' });
+      }
+      if (evaluation.evaluatorEmail !== email) {
+        return reply
+          .code(403)
+          .send({ error: 'Эту оценку может посмотреть только её автор' });
+      }
+
+      reply.header('cache-control', 'no-store');
+      return reply.send({
+        role: evaluation.role,
+        answers: evaluation.answers,
+        weights: evaluation.weights,
+        source: evaluation.source,
+        createdAt: evaluation.createdAt,
+        completed: true,
+      });
+    },
+  );
 
   // Прочитать профиль по ссылке. Чужой (привязанный к другой почте) — 404,
   // чтобы сам факт существования не выдавался.

@@ -6,15 +6,47 @@
     </a>
 
     @if (auth.signedIn()) {
-      <nav class="nav" aria-label="Разделы">
-        <a routerLink="/instruction" routerLinkActive="is-active">Инструкция</a>
-        <a routerLink="/survey" routerLinkActive="is-active">Анкета</a>
-        <a routerLink="/diagram" routerLinkActive="is-active">Диаграмма</a>
-        <a routerLink="/result" routerLinkActive="is-active">Результат</a>
-        @if (auth.admin()) {
-          <a routerLink="/admin" routerLinkActive="is-active">Админка</a>
-        }
-      </nav>
+      <!-- Пока идёт оценка по ссылке, шапка не уводит в свои разделы: все
+           ссылки ведут по шагам одного приглашения. -->
+      @if (inviteToken(); as token) {
+        <nav class="nav" aria-label="Шаги оценки">
+          <a
+            [routerLink]="['/invite', token, 'survey']"
+            routerLinkActive="is-active"
+          >
+            Анкета
+          </a>
+          <a
+            [routerLink]="['/invite', token, 'diagram']"
+            routerLinkActive="is-active"
+          >
+            Диаграмма
+          </a>
+          <a
+            [routerLink]="['/invite', token, 'result']"
+            routerLinkActive="is-active"
+          >
+            Результат
+          </a>
+        </nav>
+      } @else {
+        <nav class="nav" aria-label="Разделы">
+          <a routerLink="/instruction" routerLinkActive="is-active">Инструкция</a>
+          <a routerLink="/survey" routerLinkActive="is-active">
+            Анкета <span class="nav-tag">(основное)</span>
+          </a>
+          <a routerLink="/diagram" routerLinkActive="is-active">
+            Диаграмма <span class="nav-tag">(прототип)</span>
+          </a>
+          <a routerLink="/result" routerLinkActive="is-active">Результат</a>
+          @if (auth.pastor()) {
+            <a routerLink="/pastor" routerLinkActive="is-active">Пастор</a>
+          }
+          @if (auth.admin()) {
+            <a routerLink="/admin" routerLinkActive="is-active">Админка</a>
+          }
+        </nav>
+      }
     }
 
     <div class="account">

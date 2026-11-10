@@ -1,9 +1,10 @@
 import { Component, computed, inject } from '@angular/core';
-import { RouterLink } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 
 import { BASE_WEIGHT } from '../../core/config';
+import { inviteTokenOf } from '../../core/invite-route';
 import { qualityColor } from '../../core/visual';
-import { AssessmentStore } from '../../state/assessment.store';
+import { ASSESSMENT_STATE } from '../../state/assessment-state';
 import { buildMosaic } from './mosaic';
 
 @Component({
@@ -13,7 +14,23 @@ import { buildMosaic } from './mosaic';
   styleUrl: './diagram.component.scss',
 })
 export class DiagramComponent {
-  private readonly store = inject(AssessmentStore);
+  private readonly store = inject(ASSESSMENT_STATE);
+  private readonly route = inject(ActivatedRoute);
+
+  /** Ссылка-приглашение, если это шаг оценки чужого профиля. */
+  readonly inviteToken = inviteTokenOf(this.route);
+
+  /** «К результату» ведёт туда же, где идёт весь разбор. */
+  readonly resultLink: string[] =
+    this.inviteToken === null
+      ? ['/result']
+      : ['/invite', this.inviteToken, 'result'];
+
+  /** Анкета точнее ручных весов — ссылка на неё в том же режиме. */
+  readonly surveyLink: string[] =
+    this.inviteToken === null
+      ? ['/survey']
+      : ['/invite', this.inviteToken, 'survey'];
 
   readonly weights = this.store.weights;
   readonly qualities = this.store.qualities;

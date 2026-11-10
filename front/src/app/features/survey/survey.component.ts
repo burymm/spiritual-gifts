@@ -1,8 +1,9 @@
 import { Component, computed, inject, signal } from '@angular/core';
-import { Router } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 
+import { inviteTokenOf } from '../../core/invite-route';
 import type { AnswerValue } from '../../core/models';
-import { AssessmentStore } from '../../state/assessment.store';
+import { ASSESSMENT_STATE } from '../../state/assessment-state';
 
 export interface ScaleOption {
   readonly value: AnswerValue;
@@ -23,8 +24,15 @@ const SCALE: readonly ScaleOption[] = [
   styleUrl: './survey.component.scss',
 })
 export class SurveyComponent {
-  private readonly store = inject(AssessmentStore);
+  private readonly store = inject(ASSESSMENT_STATE);
   private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
+
+  /**
+   * Ключ ссылки-приглашения, если это шаг оценки чужого профиля. В этом
+   * режиме и тексты, и кнопка «дальше» относятся к оценке пригласившего.
+   */
+  readonly inviteToken = inviteTokenOf(this.route);
 
   readonly pageSize = 20;
   readonly page = signal(0);
@@ -72,7 +80,10 @@ export class SurveyComponent {
 
   goToDiagram(): void {
     this.store.applySurveyToDiagram();
-    void this.router.navigate(['/diagram']);
+    const token = this.inviteToken;
+    void this.router.navigate(
+      token === null ? ['/diagram'] : ['/invite', token, 'diagram'],
+    );
   }
 
   clear(): void {

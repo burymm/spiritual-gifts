@@ -97,6 +97,18 @@ npm run smoke -- http://127.0.0.1:3100
 | `PATCH` | `/api/profiles/:id` | Обновить → 200 / 404; без токена — 401; профиль без владельца «забирается» вошедшим |
 | `DELETE` | `/api/profiles/:id` | Удалить → 204 / 404; без токена — 401 (только владелец) |
 | `GET` | `/api/admin/profiles` | Последний профиль каждого пользователя → 200; без входа — 401, не админ — 403 |
+| `GET` | `/api/admin/pastors` | Назначенные пасторы `{pastors:[{email, assignedAt, assignedBy}]}` → 200; без входа — 401, не админ — 403 |
+| `POST` | `/api/admin/pastors` | `{email}` → 201 (новая запись) или 200 (уже был); неверная почта — 400, не админ — 403 |
+| `DELETE` | `/api/admin/pastors/:email` | Снять роль → 204; не был пастором — 404, не админ — 403 |
+| `GET` | `/api/pastors/me` | `{pastor, assignedAt}` для вошедшего — флаг вкладки «Пастор»; без входа — 401 |
+| `GET` | `/api/pastor/profiles` | Люди, которые прислали пастору анкету: `{members:[{email, invitedAt, role, profile, evaluations}]}`; не пастор — 403, без входа — 401 |
+| `GET` | `/api/admin/evaluations` | Все присланные оценки `{evaluations:[{id, ownerEmail, role, source, weights, createdAt}]}` — для среднего в админке; не админ — 403 |
+| `POST` | `/api/invitations` | `{email, role}` → 201 `{token, email, role}`; токен — непрозрачный ключ ссылки, без входа — 401, своя почта — 400 |
+| `GET` | `/api/invitations/:token` | Публично: `{role, completed}` по ссылке → 200 / 404 (почты в ответе нет) |
+| `GET` | `/api/invitations/mine` | Ссылки вошедшего: `{invitations:[{token,email,role,createdAt,usedAt}]}`; `usedAt` — оценка получена, ссылка закрыта |
+| `POST` | `/api/invitations/:token/evaluation` | `{weights, answers?, source?}` → 201 `{role, completed:true}`; без входа — 401, своя анкета — 400, ссылка уже использована — 409 |
+| `GET` | `/api/invitations/:token/evaluation` | Своя отправленная оценка по токену → 200 `{role, weights, answers, source, createdAt}`; без входа — 401, не автор — 403, ещё не отправлена — 404 |
+| `GET` | `/api/evaluations/mine` | Оценки вошедшего: `{evaluations:[{id,role,source,weights,createdAt}]}` — для среднего результата; почты оценщика в ответе нет |
 
 ### Админ-доступ
 
@@ -154,6 +166,27 @@ npm run smoke -- http://127.0.0.1:3100
 `owner_email` добавляет миграция `0002_add_owner_email.sql` с индексом по почте
 и времени обновления — он и даёт `GET /api/profiles/mine`.
 
+`migrations/0003_create_invitations.sql` — таблица `invitations`: `id`, `token`
+(уникальный, 256 случайных бит, url-safe), `role` (`pastor` | `friend`),
+`email` приглашённого, `owner_email` приглашающего, `created_at`, `used_at`.
+Роль и почта лежат в записи, а не в ссылке. Частичный уникальный индекс
+`(owner_email, email, role) where used_at is null` делает выдачу идемпотентной:
+для той же почты и роли возвращается уже выданная ссылка.
+
+`migrations/0004_create_evaluations.sql` — таблица `evaluations`: оценка,
+присланная по ссылке. `invitation_id` уникален, `owner_email` и `role` —
+копия из приглашения, `evaluator_email` — почта из сессии, `answers`, `weights`,
+`source` — в том же формате, что у профиля, чтобы усреднение 360° считалось
+одним движком. `used_at` в `invitations` и есть отметка «оценка завершена»:
+второй оценки по ссылке не будет, а пара (владелец, почта, роль) снова может
+получить новую ссылку. Отметка и запись идут одной транзакцией.
+
+`migrations/0005_create_pastors.sql` — таблица `pastors`: `email` (первичный
+ключ), `assigned_at`, `assigned_by` (почта администратора). Назначение живёт
+по почте, а не в токене: раздел «Пастор» появляется на любом устройстве
+сразу после входа, а снятие роли закрывает его при следующем обновлении.
+Повторное назначение идемпотентно (`on conflict do nothing`).
+
 Ограничения `check` в самом SQL страхуют запись от мусора; жёсткую проверку
 пула делает приложение, потому что число качеств задано конфигом.
 
@@ -161,5 +194,6 @@ npm run smoke -- http://127.0.0.1:3100
 
 - привязка профиля к аккаунту — сделана: вход (Google / эмуляция) и колонка
   `owner_email`; роль администратора по почте — сделана (`ADMIN_EMAIL`);
-- приглашения пастора и друзей, кабинет пастора, усреднение 360°;
+- усреднение 360° (оценки уже копятся в `evaluations`, но в результат не
+  входят), кабинет пастора и роли;
 - тогда же — RLS/права доступа в Supabase, а не только проверки в API.
